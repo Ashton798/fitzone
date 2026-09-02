@@ -32,3 +32,9 @@ server/data/*.json
 
 
 .vercel
+
+# server(render 部署)
+server/node_modules
+server/data
+*.env
+!server/.env.example

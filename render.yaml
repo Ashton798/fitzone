@@ -23,5 +23,7 @@ services:
         sync: false             # 部署后手动填写 Vercel 前端域名
     disk:
       name: fitzone-data
-      mountPath: /opt/render/project/src/data
+      # server.ts 中 DATA_DIR = process.cwd()/data,而 rootDir 为 server
+      # 因此持久磁盘要挂到 server 目录下的 data
+      mountPath: /opt/render/project/src/server/data
       sizeGB: 1                 # 免费版最大 1GB 持久化磁盘
