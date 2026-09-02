@@ -12,13 +12,51 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'fitzone-secret-key-2024';
 
-// 数据存储目录
+// 数据存储：Upstash Redis(生产持久化) + 本地文件(开发兜底)
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// 简单文件存储
+// ==================== Upstash Redis 持久化 ====================
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function redisGet(name: string): Promise<any[] | null> {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+  try {
+    const resp = await fetch(`${UPSTASH_URL}/get/${name}`, {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+    });
+    const data: any = await resp.json();
+    if (data && data.result) return JSON.parse(data.result);
+    return null;
+  } catch (e) {
+    console.warn('[Redis] 读取失败', name, e);
+    return null;
+  }
+}
+
+async function redisSet(name: string, data: any[]): Promise<void> {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
+  try {
+    await fetch(`${UPSTASH_URL}/set/${name}/${encodeURIComponent(JSON.stringify(data))}`, {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+    });
+  } catch (e) {
+    console.warn('[Redis] 写入失败', name, e);
+  }
+}
+
+// 串行写入队列,避免并发乱序覆盖
+let redisWriteQueue: Promise<void> = Promise.resolve();
+function persistToRedis(name: string, data: any[]) {
+  redisWriteQueue = redisWriteQueue
+    .then(() => redisSet(name, data))
+    .catch(e => console.warn('[Redis] 队列写入失败', name, e));
+}
+
+// 简单文件存储(本地兜底)
 const loadDB = (name: string): any[] => {
   const file = path.join(DATA_DIR, `${name}.json`);
   if (!fs.existsSync(file)) return [];
@@ -30,8 +68,13 @@ const loadDB = (name: string): any[] => {
 };
 
 const saveDB = (name: string, data: any[]) => {
-  const file = path.join(DATA_DIR, `${name}.json`);
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  // 写本地文件(开发时可读)
+  try {
+    const file = path.join(DATA_DIR, `${name}.json`);
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  } catch { /* ignore */ }
+  // 异步写 Redis(生产持久化)
+  persistToRedis(name, data);
 };
 
 // 初始化数据
@@ -46,6 +89,43 @@ let workoutRecords = loadDB('workout_records');
 let checkins = loadDB('checkins');
 let mealPlans = loadDB('meal_plans');
 let favorites = loadDB('favorites');
+
+// 从 Redis 加载全部表(有配置时优先用远端数据,保证多实例/重启持久)
+function applyRemoteTable(name: string, data: any[]) {
+  switch (name) {
+    case 'users': users = data; break;
+    case 'verification_codes': verificationCodes = data; break;
+    case 'friendships': friendships = data; break;
+    case 'messages': messages = data; break;
+    case 'posts': posts = data; break;
+    case 'post_likes': postLikes = data; break;
+    case 'post_comments': postComments = data; break;
+    case 'workout_records': workoutRecords = data; break;
+    case 'checkins': checkins = data; break;
+    case 'meal_plans': mealPlans = data; break;
+    case 'favorites': favorites = data; break;
+  }
+}
+
+const DB_TABLES = [
+  'users', 'verification_codes', 'friendships', 'messages', 'posts',
+  'post_likes', 'post_comments', 'workout_records', 'checkins', 'meal_plans', 'favorites',
+];
+
+async function loadAllFromRedis() {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
+  for (const name of DB_TABLES) {
+    try {
+      const remote = await redisGet(name);
+      if (remote && Array.isArray(remote) && remote.length > 0) {
+        applyRemoteTable(name, remote);
+      }
+    } catch (e) {
+      console.warn('[Redis] 加载表失败', name, e);
+    }
+  }
+  console.log('[Redis] 数据已从 Upstash 加载');
+}
 
 // 中间件
 // 允许前端域名跨域访问（开发 + 生产环境）
@@ -1128,22 +1208,28 @@ function seedDatabase() {
   }
 }
 
-seedDatabase();
+// 启动：先加载 Redis 持久化数据,空库时才 seed,然后监听
+async function start() {
+  await loadAllFromRedis();
+  seedDatabase();
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`FitZone 后端服务已启动: http://localhost:${PORT}`);
-  console.log('API端点:');
-  console.log('  - 认证: /api/auth/*');
-  console.log('  - 好友: /api/friends/*');
-  console.log('  - 消息: /api/messages/*');
-  console.log('  - 帖子: /api/posts/*');
-  console.log('  - 饮食: /api/meals/*');
-  console.log('  - 训练: /api/workouts/*');
-  console.log('  - AI:  /api/ai/* (chat / analyze / voice)');
-  console.log('');
-  console.log('AI 配置状态:');
-  console.log(`  - DeepSeek 文字对话: ${process.env.DEEPSEEK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
-  console.log(`  - 豆包视觉模型:     ${process.env.DOUBAO_ARK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
-  console.log(`  - 豆包语音服务:     ${process.env.VOLC_APPID ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
-});
+  app.listen(PORT, () => {
+    console.log(`FitZone 后端服务已启动: http://localhost:${PORT}`);
+    console.log('API端点:');
+    console.log('  - 认证: /api/auth/*');
+    console.log('  - 好友: /api/friends/*');
+    console.log('  - 消息: /api/messages/*');
+    console.log('  - 帖子: /api/posts/*');
+    console.log('  - 饮食: /api/meals/*');
+    console.log('  - 训练: /api/workouts/*');
+    console.log('  - AI:  /api/ai/* (chat / analyze / voice)');
+    console.log('');
+    console.log('AI 配置状态:');
+    console.log(`  - DeepSeek 文字对话: ${process.env.DEEPSEEK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
+    console.log(`  - 豆包视觉模型:     ${process.env.DOUBAO_ARK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
+    console.log(`  - 豆包语音服务:     ${process.env.VOLC_APPID ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
+    console.log(`  - Redis 持久化:     ${UPSTASH_URL ? '✓ 已配置' : '✗ 未配置（数据仅存本地文件）'}`);
+  });
+}
+
+start();
