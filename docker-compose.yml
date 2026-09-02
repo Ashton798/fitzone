@@ -1,0 +1,50 @@
+# FitZone 生产环境部署配置
+# 使用：docker compose up -d --build
+
+services:
+  # ==================== 后端 API ====================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: fitzone-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-please-change-this-secret-in-production}
+    volumes:
+      # 持久化数据（用户、帖子、好友等）
+      - backend_data:/app/data
+    networks:
+      - fitzone-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ==================== 前端 Nginx ====================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: fitzone-frontend
+    restart: unless-stopped
+    ports:
+      # 修改左侧端口可改对外端口，例如 "80:80" 直接用 80
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - fitzone-net
+
+networks:
+  fitzone-net:
+    driver: bridge
+
+volumes:
+  backend_data:
+    # 用户数据、帖子、好友关系、消息等持久化存储

@@ -1,0 +1,512 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600&family=ZCOOL+KuaiLe&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #F4F6FA;
+  color: #16233B;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ============ 滚动条 - 深蓝运动风 ============ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #E9EDF4;
+}
+::-webkit-scrollbar-thumb {
+  background: #9FB3D4;
+  border-radius: 8px;
+  border: 2px solid #E9EDF4;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2F6BFF;
+}
+
+::selection {
+  background: rgba(47, 107, 255, 0.2);
+  color: #0A1A2F;
+}
+
+/* ============ 字体系统 ============ */
+/* 中文标题：站酷快乐体（手作海报感） */
+.font-display,
+.h-display {
+  font-family: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  letter-spacing: 0.01em;
+  line-height: 1.18;
+}
+
+/* 英文/数字标题：Anton 运动海报体 */
+.font-anton {
+  font-family: 'Anton', 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* 手写点缀 */
+.font-hand {
+  font-family: 'Caveat', 'ZCOOL KuaiLe', cursive;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-feature-settings: "tnum";
+}
+
+/* ============ 斜切标题装饰 ============ */
+.skew-tag {
+  display: inline-block;
+  transform: skewX(-8deg);
+  background: #FFC93C;
+  color: #0A1A2F;
+  padding: 0.1em 0.55em;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.skew-tag-blue {
+  display: inline-block;
+  transform: skewX(-8deg);
+  background: #2F6BFF;
+  color: #fff;
+  padding: 0.1em 0.55em;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* ============ 按钮 - 弹性运动风（参考 aardvark bounce easing）============ */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm transition-all duration-200 active:scale-90;
+  background: #2F6BFF;
+  color: #FFFFFF;
+  box-shadow: 0 4px 0 0 #16409E, 0 6px 16px rgba(47, 107, 255, 0.35);
+  font-family: 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 #16409E, 0 10px 24px rgba(47, 107, 255, 0.45);
+  background: #4480FF;
+}
+
+.btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 0 #16409E;
+}
+
+.btn-outlined {
+  @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm transition-all duration-200 active:scale-90;
+  background: transparent;
+  color: #0A1A2F;
+  border: 2px solid #0A1A2F;
+  font-family: 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.btn-outlined:hover {
+  background: #0A1A2F;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(10, 26, 47, 0.25);
+}
+
+.btn-outlined-light {
+  @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm transition-all duration-200 active:scale-90;
+  background: transparent;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-family: 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.btn-outlined-light:hover {
+  background: #fff;
+  color: #0A1A2F;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-accent {
+  @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm transition-all duration-200 active:scale-90;
+  background: #FFC93C;
+  color: #0A1A2F;
+  box-shadow: 0 4px 0 0 #B8860B, 0 6px 16px rgba(255, 201, 60, 0.4);
+  font-family: 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.btn-accent:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 #B8860B, 0 10px 24px rgba(255, 201, 60, 0.55);
+}
+
+.btn-accent:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 0 #B8860B;
+}
+
+/* 旧类兼容 */
+.btn-filled {
+  @apply btn-primary;
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 active:scale-90;
+  background: #E9EDF4;
+  color: #16233B;
+  border: 1px solid #D4DCE8;
+}
+.btn-secondary:hover {
+  background: #DDE4EF;
+}
+.btn-tonal {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-90;
+  background: #E3EBFF;
+  color: #1D4ED8;
+}
+.btn-tonal:hover {
+  background: #D3E0FF;
+}
+.btn-text {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-colors;
+  color: #2F6BFF;
+}
+.btn-text:hover {
+  background: rgba(47, 107, 255, 0.1);
+}
+
+/* ============ 卡片 - 粗边框运动票券风 ============ */
+.surface-card {
+  background: #FFFFFF;
+  border: 2px solid #0A1A2F;
+  border-radius: 18px;
+  box-shadow: 4px 4px 0 rgba(10, 26, 47, 0.12);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+
+.surface-card:hover {
+  transform: translateY(-4px) rotate(-0.5deg);
+  box-shadow: 6px 8px 0 rgba(47, 107, 255, 0.25);
+}
+
+.tint-card {
+  border-radius: 18px;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tint-card:hover {
+  transform: translateY(-3px) rotate(0.5deg);
+}
+
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, border-color 0.2s;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+}
+
+/* ============ Hero 背景 - 深蓝运动风 ============ */
+.hero-gradient {
+  background:
+    radial-gradient(ellipse 80% 60% at 85% -10%, rgba(47, 107, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 10% 110%, rgba(88, 166, 255, 0.18) 0%, transparent 55%),
+    linear-gradient(160deg, #0A1A2F 0%, #10264A 55%, #0D1F3D 100%);
+}
+
+.hero-gradient-light {
+  background:
+    radial-gradient(ellipse 60% 60% at 90% 0%, rgba(47, 107, 255, 0.08) 0%, transparent 55%),
+    linear-gradient(180deg, #FFFFFF 0%, #F4F6FA 100%);
+}
+
+/* 网格 - 深色环境下的微光网格 */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 40%, transparent 100%);
+}
+
+.bg-grid-dark {
+  background-image:
+    linear-gradient(rgba(10, 26, 47, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 26, 47, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 40%, transparent 100%);
+}
+
+/* 斜切分割条 - 运动服条纹感 */
+.divider-skew {
+  position: relative;
+  height: 28px;
+  overflow: hidden;
+}
+
+.divider-skew::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -50%;
+  height: 200%;
+  transform: skewY(-2.5deg);
+  background: inherit;
+}
+
+/* ============ 心率线动画 ============ */
+.heartbeat-line {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: heartbeatDraw 4s ease-in-out infinite;
+}
+
+@keyframes heartbeatDraw {
+  0% { stroke-dashoffset: 400; }
+  45% { stroke-dashoffset: 0; }
+  70% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -400; }
+}
+
+/* 呼吸圆点 */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 201, 60, 0.6);
+  animation: pulseRing 2s ease-out infinite;
+}
+@keyframes pulseRing {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ============ 滚动入场动效 ============ */
+.reveal {
+  opacity: 0;
+  transform: translateY(36px) rotate(0.5deg);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.reveal-visible {
+  opacity: 1;
+  transform: translateY(0) rotate(0);
+}
+
+/* 错位延迟 */
+.reveal-delay-1 { transition-delay: 0.08s; }
+.reveal-delay-2 { transition-delay: 0.16s; }
+.reveal-delay-3 { transition-delay: 0.24s; }
+.reveal-delay-4 { transition-delay: 0.32s; }
+.reveal-delay-5 { transition-delay: 0.40s; }
+
+/* 贴纸徽章 - 手写风 */
+.sticker {
+  display: inline-block;
+  transform: rotate(-3deg);
+  background: #FFC93C;
+  color: #0A1A2F;
+  border: 2px solid #0A1A2F;
+  border-radius: 10px;
+  padding: 0.3em 0.7em;
+  box-shadow: 3px 3px 0 rgba(10, 26, 47, 0.9);
+  font-family: 'ZCOOL KuaiLe', sans-serif;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sticker:hover {
+  transform: rotate(0deg) scale(1.05);
+}
+
+.sticker-blue {
+  background: #2F6BFF;
+  color: #fff;
+  box-shadow: 3px 3px 0 rgba(10, 26, 47, 0.9);
+}
+
+/* 杠铃片装饰圆 */
+.plate {
+  border: 6px solid #0A1A2F;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0A1A2F;
+  background: #fff;
+  font-family: 'Anton', sans-serif;
+  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px #0A1A2F;
+}
+
+.plate-yellow { background: #FFC93C; }
+.plate-blue { background: #2F6BFF; color: #fff; border-color: #fff; box-shadow: inset 0 0 0 3px #2F6BFF, inset 0 0 0 5px #fff; }
+
+/* 浮动动画（杠铃片、贴纸） */
+.float-slow { animation: floaty 5s ease-in-out infinite; }
+.float-slower { animation: floaty 7s ease-in-out infinite; animation-delay: 1s; }
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-14px) rotate(3deg); }
+}
+
+/* 图片悬停 - 运动感 */
+.img-sport {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group:hover .img-sport {
+  transform: scale(1.06) rotate(-1deg);
+}
+
+/* 发光文字 */
+.gradient-text {
+  background: linear-gradient(100deg, #58A6FF 0%, #2F6BFF 50%, #7CB8FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.gradient-text-pink {
+  background: linear-gradient(100deg, #FFC93C, #FF9A3C);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* 数字指标 */
+.metric-value {
+  font-family: 'Anton', 'ZCOOL KuaiLe', sans-serif;
+  letter-spacing: 0.02em;
+  font-feature-settings: "tnum";
+}
+
+/* 兼容旧类 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.gradient-border {
+  position: relative;
+  background: #fff;
+  border: 2px solid #0A1A2F;
+  border-radius: 18px;
+}
+.glow-pink, .glow-purple, .glow-green, .glow-orange {
+  box-shadow: 4px 4px 0 rgba(10, 26, 47, 0.12);
+}
+.bg-noise { background-image: none; }
+.shimmer-text {
+  background: linear-gradient(100deg, #2F6BFF, #58A6FF, #2F6BFF);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shimmerMove 3s linear infinite;
+}
+@keyframes shimmerMove {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.animated-gradient {
+  background: linear-gradient(100deg, #0A1A2F, #2F6BFF, #0A1A2F);
+  background-size: 200% 100%;
+  animation: shimmerMove 6s linear infinite;
+}
+
+/* 标签/徽章 */
+.badge {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+}
+
+.chip {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors;
+  background: #E9EDF4;
+  color: #16233B;
+  border: 1px solid transparent;
+}
+.chip:hover {
+  background: #DDE4EF;
+}
+.chip-active {
+  background: #0A1A2F;
+  color: #fff;
+  border-color: #0A1A2F;
+}
+
+/* 动画延迟（旧） */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.30s; }
+
+/* 圆形进度环 */
+.progress-ring { transform: rotate(-90deg); }
+.progress-ring__circle {
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 搜索框 */
+.search-field {
+  @apply w-full pl-11 pr-4 py-2.5 rounded-full text-sm transition-all;
+  background: #E9EDF4;
+  border: 1px solid transparent;
+  color: #16233B;
+}
+.search-field:focus {
+  outline: none;
+  background: #fff;
+  border-color: #2F6BFF;
+  box-shadow: 0 0 0 4px rgba(47, 107, 255, 0.18);
+}
+.search-field::placeholder { color: #7A8AA6; }
+
+.divider { border-top: 1px solid #E3E9F2; }
+
+*:focus-visible {
+  outline: 2px solid #2F6BFF;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

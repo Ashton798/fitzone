@@ -1,0 +1,27 @@
+# Render 后端服务部署配置
+# 文档：https://render.com/docs/blueprint-spec
+# 使用：在 Render 控制台 New > Blueprint 选择仓库，会自动读取此文件
+
+services:
+  - type: web
+    name: fitzone-backend
+    runtime: node
+    plan: free                  # 免费套餐
+    region: singapore           # 新加坡区域（亚洲访问较快）
+    branch: main
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npx tsx server.ts
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true    # Render 自动生成随机密钥
+      - key: FRONTEND_URL
+        sync: false             # 部署后手动填写 Vercel 前端域名
+    disk:
+      name: fitzone-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1                 # 免费版最大 1GB 持久化磁盘

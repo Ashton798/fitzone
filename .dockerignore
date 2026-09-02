@@ -1,0 +1,40 @@
+# ==================== 构建产物 ====================
+dist/
+dist-ssr/
+
+# ==================== 依赖目录 ====================
+node_modules/
+server/node_modules/
+
+# ==================== 数据文件（避免把本地数据打包进镜像）====================
+server/data/
+data/
+*.json.lock
+
+# ==================== 环境 & 日志 ====================
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==================== 编辑器 / 系统 ====================
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# ==================== Git ====================
+.git/
+.gitignore
+
+# ==================== 文档 ====================
+*.md
+README.md
+
+# ==================== Docker 自身 ====================
+Dockerfile*
+docker-compose*.yml
+.dockerignore

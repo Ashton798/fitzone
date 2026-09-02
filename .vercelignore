@@ -1,0 +1,11 @@
+server
+docker-compose.yml
+Dockerfile-backend
+Dockerfile-frontend
+nginx.conf
+render.yaml
+DEPLOY.md
+README.md
+.trae
+.env.example
+.env.development
