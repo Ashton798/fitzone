@@ -1,12 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar, Plus, Apple, Beef, Salad, Coffee,
-  Trash2, Edit3, ChevronLeft, ChevronRight,
+  Trash2, ChevronLeft, ChevronRight,
   Flame, Target, TrendingUp, AlertCircle, Wand2, Loader2, CheckCircle,
-  User as UserIcon, Scale, Ruler, CakeSlice, Activity as ActivityIcon, Droplets, Settings2
+  Droplets, Settings2, Sparkles
 } from 'lucide-react';
-import { mealsApi } from '@/lib/api';
+import { mealsApi, nutritionApi, planGeneratorApi } from '@/lib/api';
 import { getToken } from '@/lib/api';
 import {
   loadNutritionProfile, saveNutritionProfile, calcNutritionTargets,
@@ -133,7 +134,7 @@ const MealPlan = () => {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [meals, setMeals] = useState<Meal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState('breakfast');
   const [newMeal, setNewMeal] = useState({
@@ -147,6 +148,10 @@ const MealPlan = () => {
   // 智能营养估算提示
   const [estimateHint, setEstimateHint] = useState('');
   const [estimating, setEstimating] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiPreferences, setAiPreferences] = useState('家常、容易准备、高蛋白');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [notice, setNotice] = useState('');
 
   // ===== 个人营养档案(按个人情况定制) =====
   const [profile, setProfile] = useState<NutritionProfile>(() => loadNutritionProfile());
@@ -160,11 +165,12 @@ const MealPlan = () => {
     setShowProfileModal(true);
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     saveNutritionProfile(draft);
     setProfile({ ...draft });
     setTargets(calcNutritionTargets(draft));
     setShowProfileModal(false);
+    try { await nutritionApi.saveProfile(draft); } catch { /* 本地仍保留，联网后可再次保存 */ }
   };
 
   const isLoggedIn = !!getToken();
@@ -177,10 +183,24 @@ const MealPlan = () => {
     loadMeals();
   }, [currentDate, isLoggedIn]);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    nutritionApi.getProfile().then(remote => {
+      if (!remote) return;
+      const synced = { ...loadNutritionProfile(), ...remote } as NutritionProfile;
+      saveNutritionProfile(synced);
+      setProfile(synced);
+      setDraft(synced);
+      setTargets(calcNutritionTargets(synced));
+    }).catch(() => {});
+  }, [isLoggedIn]);
+
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
   const loadMeals = async () => {
     setLoading(true);
     try {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = dateKey(currentDate);
       const result = await mealsApi.getMeals(dateStr);
       setMeals(result);
     } catch (error) {
@@ -202,19 +222,19 @@ const MealPlan = () => {
   };
 
   const getTotalCalories = () => {
-    return meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+    return meals.filter(m => m.eaten !== false).reduce((sum, m) => sum + (m.calories || 0), 0);
   };
 
   const getTotalProtein = () => {
-    return meals.reduce((sum, m) => sum + (m.protein || 0), 0);
+    return meals.filter(m => m.eaten !== false).reduce((sum, m) => sum + (m.protein || 0), 0);
   };
 
   const getTotalCarbs = () => {
-    return meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
+    return meals.filter(m => m.eaten !== false).reduce((sum, m) => sum + (m.carbs || 0), 0);
   };
 
   const getTotalFat = () => {
-    return meals.reduce((sum, m) => sum + (m.fat || 0), 0);
+    return meals.filter(m => m.eaten !== false).reduce((sum, m) => sum + (m.fat || 0), 0);
   };
 
   // 智能估算：根据食物名称大体推算卡路里/蛋白质/碳水/脂肪
@@ -240,11 +260,11 @@ const MealPlan = () => {
     }, 400);
   };
 
-  const handleAddMeal = async () => {
+  const handleAddMeal = async (eaten = true) => {
     if (!newMeal.name) return;
 
     try {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = dateKey(currentDate);
       await mealsApi.addMeal({
         date: dateStr,
         mealType: selectedMealType,
@@ -254,6 +274,7 @@ const MealPlan = () => {
         carbs: newMeal.carbs,
         fat: newMeal.fat,
         description: newMeal.description,
+        eaten,
       });
       await loadMeals();
       setShowAddModal(false);
@@ -268,6 +289,27 @@ const MealPlan = () => {
       setEstimateHint('');
     } catch (error) {
       console.error('添加饮食失败:', error);
+    }
+  };
+
+  const handleGenerateMealPlan = async () => {
+    setAiGenerating(true);
+    setNotice('');
+    try {
+      const result = await planGeneratorApi.meals({
+        goal: GOAL_OPTIONS.find(item => item.id === profile.goal)?.label || '保持',
+        calories: targets.calories,
+        preferences: aiPreferences,
+      }) as { meals: Array<any> };
+      const date = dateKey(currentDate);
+      await Promise.all(result.meals.map(meal => mealsApi.addMeal({ ...meal, date, eaten: false })));
+      await loadMeals();
+      setShowAIModal(false);
+      setNotice('AI 餐单已加入当天计划，吃完后点“我吃了”即可计入摄入。');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'AI 餐单生成失败');
+    } finally {
+      setAiGenerating(false);
     }
   };
 
@@ -329,14 +371,13 @@ const MealPlan = () => {
             <h1 className="text-3xl font-bold font-display text-dark-900">饮食计划</h1>
             <p className="text-dark-500 mt-2">科学饮食，健康生活</p>
           </div>
-          <button
-            onClick={() => { setShowAddModal(true); setEstimateHint(''); }}
-            className="btn-filled flex items-center gap-2 px-6 py-3"
-          >
-            <Plus className="w-5 h-5" />
-            添加饮食
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setShowAIModal(true)} className="btn-tonal flex items-center gap-2 px-4 py-3"><Sparkles className="w-5 h-5" />AI 生成餐单</button>
+            <button onClick={() => { setShowAddModal(true); setEstimateHint(''); }} className="btn-filled flex items-center gap-2 px-4 md:px-6 py-3"><Plus className="w-5 h-5" />添加饮食</button>
+          </div>
         </div>
+
+        {notice && <div className="mb-5 px-4 py-3 rounded-xl bg-primary-50 border border-primary-200 text-primary-800 text-sm">{notice}</div>}
 
         {/* Date Selector */}
         <div className="bg-white rounded-2xl p-6 border border-dark-300 mb-8">
@@ -920,17 +961,16 @@ const MealPlan = () => {
                 />
               </div>
 
-              <button
-                onClick={handleAddMeal}
-                disabled={!newMeal.name}
-                className="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                保存
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => handleAddMeal(false)} disabled={!newMeal.name} className="py-4 bg-dark-100 text-dark-800 font-semibold rounded-xl disabled:opacity-50">加入计划</button>
+                <button onClick={() => handleAddMeal(true)} disabled={!newMeal.name} className="py-4 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl disabled:opacity-50">记录已吃</button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {showAIModal && <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-0 md:p-4"><div className="bg-white rounded-t-3xl md:rounded-3xl border border-dark-300 w-full max-w-lg p-6 pb-[calc(24px+env(safe-area-inset-bottom))]"><div className="flex justify-between items-start"><div><p className="text-xs font-bold text-primary-600">AI MEAL PLANNER</p><h3 className="font-display text-2xl text-dark-950 mt-1">生成当天餐单</h3><p className="text-sm text-dark-500 mt-1">按 {targets.calories} kcal 和你的目标生成，先作为计划保存。</p></div><button onClick={() => setShowAIModal(false)} className="w-10 h-10 rounded-full bg-dark-100">×</button></div><label className="block text-sm font-bold text-dark-700 mt-6">饮食偏好<textarea value={aiPreferences} onChange={event => setAiPreferences(event.target.value)} rows={3} className="mt-2 w-full rounded-xl border-2 border-dark-300 p-3 font-normal outline-none focus:border-primary-500" placeholder="例如：不吃牛肉、预算友好、方便带饭" /></label><button onClick={handleGenerateMealPlan} disabled={aiGenerating} className="btn-accent w-full min-h-14 mt-5 disabled:opacity-50">{aiGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}{aiGenerating ? '正在生成…' : '生成并加入当天计划'}</button></div></div>}
     </div>
   );
 };

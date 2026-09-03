@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -20,7 +21,6 @@ const BG_OPTIONS: { mode: BgMode; label: string }[] = [
 ];
 const DEFAULT_BG: BgMode = 'white';
 
-const LOCAL_AVATAR_KEY = 'fitzone_local_avatar';
 const LOCAL_BG_KEY = 'fitzone_local_background';
 
 // 把上传的图片文件压缩到合理大小（最大 400px，JPEG 0.85）
@@ -65,8 +65,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
-  // 本地头像 / 背景色（独立于后端）
-  const [localAvatar, setLocalAvatar] = useState<string>('');
+  // 背景色属于设备外观偏好；头像属于账号并由服务器同步。
   const [background, setBackground] = useState<BgMode>(DEFAULT_BG);
 
   const [editForm, setEditForm] = useState({
@@ -89,8 +88,6 @@ const Profile = () => {
       return;
     }
     loadUser();
-    // 加载本地头像和背景色
-    setLocalAvatar(localStorage.getItem(LOCAL_AVATAR_KEY) || '');
     const savedBg = localStorage.getItem(LOCAL_BG_KEY) as BgMode | null;
     setBackground(savedBg === 'black' ? 'black' : 'white');
     setEditBackground(savedBg === 'black' ? 'black' : 'white');
@@ -99,9 +96,17 @@ const Profile = () => {
   const loadUser = async () => {
     setLoading(true);
     try {
-      const userData = await authApi.getCurrentUser();
-      if (userData.avatar && userData.avatar.startsWith('data:')) {
-        userData.avatar = DEFAULT_AVATAR;
+      let userData = await authApi.getCurrentUser();
+      const legacyAvatar = localStorage.getItem('fitzone_local_avatar');
+      if (legacyAvatar?.startsWith('data:image/')) {
+        try {
+          const migrated = await authApi.updateUser({ avatar: legacyAvatar });
+          userData = { ...userData, ...migrated.user };
+          localStorage.removeItem('fitzone_local_avatar');
+        } catch {
+          // 保留旧缓存，下次打开资料页时继续迁移。
+          userData = { ...userData, avatar: legacyAvatar };
+        }
       }
       if (!userData.avatar) {
         userData.avatar = DEFAULT_AVATAR;
@@ -127,8 +132,7 @@ const Profile = () => {
     setLoading(false);
   };
 
-  // 实际显示的头像：本地头像 > 后端头像
-  const displayAvatar = localAvatar || user?.avatar || DEFAULT_AVATAR;
+  const displayAvatar = user?.avatar || DEFAULT_AVATAR;
   const editDisplayAvatar = editLocalAvatar || editForm.avatar;
 
   const handleSave = async () => {
@@ -137,21 +141,7 @@ const Profile = () => {
       return;
     }
 
-    // 头像：有本地上传则存 localStorage；否则用默认头像
-    if (editLocalAvatar) {
-      localStorage.setItem(LOCAL_AVATAR_KEY, editLocalAvatar);
-      setLocalAvatar(editLocalAvatar);
-    } else {
-      let safeAvatar = editForm.avatar;
-      if (safeAvatar && safeAvatar.startsWith('data:')) {
-        safeAvatar = DEFAULT_AVATAR;
-      }
-      if (!safeAvatar) safeAvatar = DEFAULT_AVATAR;
-      editForm.avatar = safeAvatar;
-      // 清除之前的本地头像
-      localStorage.removeItem(LOCAL_AVATAR_KEY);
-      setLocalAvatar('');
-    }
+    const avatarToSave = editLocalAvatar || editForm.avatar || DEFAULT_AVATAR;
 
     // 背景色：存 localStorage
     localStorage.setItem(LOCAL_BG_KEY, editBackground);
@@ -161,7 +151,7 @@ const Profile = () => {
     try {
       const result = await authApi.updateUser({
         nickname: editForm.nickname,
-        avatar: editForm.avatar,
+        avatar: avatarToSave,
         bio: editForm.bio,
       });
       if (result.success) {
@@ -171,12 +161,12 @@ const Profile = () => {
         };
         setUser(updatedUser);
         updateStoreUser(updatedUser);
+        setEditLocalAvatar('');
         setEditing(false);
       }
     } catch (error) {
       console.error('保存失败:', error);
-      // 即使后端失败，本地头像和背景图也已保存
-      setEditing(false);
+      alert(error instanceof Error ? error.message : '保存失败，请重试');
     }
     setSaving(false);
   };
@@ -201,7 +191,7 @@ const Profile = () => {
       setEditLocalAvatar(compressed);
       // 同时清空预设选择（本地上传优先）
       setEditForm({ ...editForm, avatar: '' });
-    } catch (err) {
+    } catch {
       alert('图片处理失败，请重试');
     }
     e.target.value = '';

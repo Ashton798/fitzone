@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Activity, BarChart3, CalendarDays, Check, ChevronDown, ChevronRight,
   Clock3, Dumbbell, Flame, History, Medal, MoreHorizontal, Plus, Save,
-  TimerReset, Trash2, TrendingUp, Trophy, X,
+  TimerReset, Trash2, TrendingUp, Trophy, X, Sparkles, Loader2,
 } from 'lucide-react';
-import { exercisesApi, getToken, workoutPlansApi, workoutsApi } from '@/lib/api';
+import { exercisesApi, getToken, planGeneratorApi, workoutPlansApi, workoutsApi } from '@/lib/api';
 import type {
   Exercise, PersonalRecord, Workout, WorkoutExercise, WorkoutPlan, WorkoutSet, WorkoutStats,
 } from '@/types';
@@ -93,6 +93,9 @@ export default function WorkoutTracker() {
   const [planFocus, setPlanFocus] = useState('');
   const [planWeekday, setPlanWeekday] = useState<number | undefined>(undefined);
   const [planExerciseIds, setPlanExerciseIds] = useState<string[]>([]);
+  const [aiPlanOpen, setAiPlanOpen] = useState(false);
+  const [aiPlanGenerating, setAiPlanGenerating] = useState(false);
+  const [aiPlanForm, setAiPlanForm] = useState({ goal: '增肌', level: '初级', equipment: '健身房器械', days: 3 });
   const hydrated = useRef(false);
 
   const loadAll = useCallback(async () => {
@@ -259,6 +262,22 @@ export default function WorkoutTracker() {
     } catch (err: any) { setError(err.message || '创建计划失败'); }
   };
 
+  const createAIPlans = async () => {
+    setAiPlanGenerating(true);
+    setError('');
+    try {
+      const generated = await planGeneratorApi.workout(aiPlanForm) as { plans: Array<any> };
+      const saved = await Promise.all(generated.plans.map(plan => workoutPlansApi.createPlan(plan))) as WorkoutPlan[];
+      setPlans(current => [...current, ...saved]);
+      setAiPlanOpen(false);
+      setTab('plans');
+    } catch (err: any) {
+      setError(err.message || 'AI 训练计划生成失败');
+    } finally {
+      setAiPlanGenerating(false);
+    }
+  };
+
   if (loading) return <div className="min-h-[70vh] flex items-center justify-center text-dark-500"><Activity className="w-6 h-6 mr-2 animate-pulse" />正在读取训练数据</div>;
 
   const tabs: Array<{ id: TrackerTab; label: string; icon: any }> = [
@@ -322,8 +341,8 @@ export default function WorkoutTracker() {
                       <div className="space-y-2">
                         {exercise.sets.map((set, index) => <div key={set.id} className={`grid grid-cols-[32px_1fr_1fr_52px] gap-2 items-center rounded-xl p-1.5 transition-colors ${set.completed ? 'bg-green-50' : 'bg-dark-100'}`}>
                           <button onClick={() => removeSet(exercise.id, set.id)} className="text-sm font-anton text-dark-500 h-12" title="删除本组">{index + 1}</button>
-                          <input type="number" inputMode="decimal" min="0" step="0.5" value={set.weight} onChange={event => updateSet(exercise.id, set.id, { weight: Number(event.target.value) })} className="h-12 min-w-0 rounded-lg border-2 border-dark-300 bg-white text-center font-anton text-xl text-dark-950 focus:border-primary-500 focus:outline-none" aria-label={`${exercise.exerciseName}第${index + 1}组重量`} />
-                          <input type="number" inputMode="numeric" min="0" step="1" value={set.reps} onChange={event => updateSet(exercise.id, set.id, { reps: Number(event.target.value) })} className="h-12 min-w-0 rounded-lg border-2 border-dark-300 bg-white text-center font-anton text-xl text-dark-950 focus:border-primary-500 focus:outline-none" aria-label={`${exercise.exerciseName}第${index + 1}组次数`} />
+                          <input type="number" inputMode="decimal" min="0" step="0.5" value={set.weight || ''} onFocus={event => event.currentTarget.select()} onChange={event => updateSet(exercise.id, set.id, { weight: event.target.value === '' ? 0 : Number(event.target.value) })} className="h-12 min-w-0 rounded-lg border-2 border-dark-300 bg-white text-center font-anton text-xl text-dark-950 focus:border-primary-500 focus:outline-none" aria-label={`${exercise.exerciseName}第${index + 1}组重量`} placeholder="0" />
+                          <input type="number" inputMode="numeric" min="0" step="1" value={set.reps || ''} onFocus={event => event.currentTarget.select()} onChange={event => updateSet(exercise.id, set.id, { reps: event.target.value === '' ? 0 : Number(event.target.value) })} className="h-12 min-w-0 rounded-lg border-2 border-dark-300 bg-white text-center font-anton text-xl text-dark-950 focus:border-primary-500 focus:outline-none" aria-label={`${exercise.exerciseName}第${index + 1}组次数`} placeholder="0" />
                           <button onClick={() => toggleSet(exercise.id, set.id)} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center active:scale-90 transition-all ${set.completed ? 'bg-vibe-green border-dark-950 text-dark-950 shadow-[2px_2px_0_#0A1A2F]' : 'bg-white border-dark-300 text-dark-300'}`} aria-label={`${set.completed ? '取消' : '完成'}第${index + 1}组`}><Check className="w-6 h-6" strokeWidth={3} /></button>
                         </div>)}
                       </div>
@@ -367,7 +386,7 @@ export default function WorkoutTracker() {
         </div>}
 
         {tab === 'plans' && <div className="max-w-4xl mx-auto py-4">
-          <div className="flex items-center justify-between mb-4"><div><h2 className="font-display text-2xl text-dark-950">我的训练计划</h2><p className="text-sm text-dark-500 mt-1">一次设置，到点直接开练</p></div><button onClick={() => setPlanOpen(true)} className="btn-primary px-4 md:px-6"><Plus className="w-4 h-4" />新计划</button></div>
+          <div className="flex items-center justify-between mb-4 gap-3"><div><h2 className="font-display text-2xl text-dark-950">我的训练计划</h2><p className="text-sm text-dark-500 mt-1">一次设置，到点直接开练</p></div><div className="flex gap-2"><button onClick={() => setAiPlanOpen(true)} className="btn-tonal px-3 md:px-5"><Sparkles className="w-4 h-4" />AI 创建</button><button onClick={() => setPlanOpen(true)} className="btn-primary px-3 md:px-5"><Plus className="w-4 h-4" />新计划</button></div></div>
           {plans.length === 0 ? <EmptyState icon={CalendarDays} title="建立你的训练节奏" description="创建 Push / Pull / Legs，或为某一天安排固定训练。" action={<button onClick={() => setPlanOpen(true)} className="btn-primary">创建训练计划</button>} /> : <div className="grid sm:grid-cols-2 gap-4">{plans.map(plan => <article key={plan.id} className="surface-card bg-white p-5 flex flex-col"><div className="flex justify-between gap-3"><div><p className="text-xs text-primary-500 font-bold">{plan.weekday === undefined ? '随时训练' : ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][plan.weekday]}</p><h3 className="font-display text-2xl text-dark-950 mt-1">{plan.name}</h3><p className="text-sm text-dark-500 mt-1">{plan.focus}</p></div><button onClick={async () => { await workoutPlansApi.deletePlan(plan.id); setPlans(current => current.filter(item => item.id !== plan.id)); }} className="w-10 h-10 rounded-full text-dark-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button></div><div className="flex flex-wrap gap-2 my-5 flex-1">{plan.exercises.map(item => <span key={item.exerciseId} className="px-2.5 py-1 bg-dark-100 rounded-lg text-xs">{item.exerciseName} · {item.sets}组</span>)}</div><button onClick={() => startWorkout(plan)} className="btn-accent w-full min-h-12">开始这个计划<ChevronRight className="w-4 h-4" /></button></article>)}</div>}
         </div>}
       </div>
@@ -383,6 +402,8 @@ export default function WorkoutTracker() {
       {completedWorkout && <div className="fixed inset-0 z-[75] bg-dark-950/75 backdrop-blur flex items-center justify-center p-4"><div className="surface-card bg-white w-full max-w-md p-6 text-center"><div className="w-16 h-16 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center mx-auto"><Trophy className="w-8 h-8" /></div><p className="font-hand text-2xl text-primary-500 mt-4">workout complete!</p><h2 className="font-display text-3xl text-dark-950 mt-1">训练已保存</h2>{!!completedWorkout.newRecords?.length && <div className="mt-5 p-4 rounded-2xl bg-dark-950 text-white text-left"><p className="text-accent-400 text-xs font-bold mb-2">🏆 新纪录</p>{completedWorkout.newRecords.map((record: PersonalRecord) => <p key={record.id} className="font-display text-lg">恭喜！你创造了新的{record.exerciseName}记录 <span className="font-anton text-accent-400">{record.weight}kg × {record.reps}</span></p>)}</div>}<button onClick={() => { setCompletedWorkout(null); setTab('history'); }} className="btn-primary w-full mt-6 min-h-12">查看训练历史</button></div></div>}
 
       {planOpen && <div className="fixed inset-0 z-[70] bg-dark-950/65 flex items-end md:items-center justify-center"><div className="bg-white w-full md:max-w-xl max-h-[90vh] overflow-y-auto rounded-t-3xl md:rounded-3xl border-2 border-dark-950 p-5"><div className="flex justify-between items-center mb-4"><h2 className="font-display text-2xl">创建训练计划</h2><button onClick={() => setPlanOpen(false)} className="w-10 h-10 rounded-full bg-dark-100 flex items-center justify-center"><X className="w-5 h-5" /></button></div><div className="grid sm:grid-cols-2 gap-3"><label className="text-xs font-bold text-dark-600">计划名称<input value={planName} onChange={event => setPlanName(event.target.value)} placeholder="Push" className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-4 outline-none focus:border-primary-500" /></label><label className="text-xs font-bold text-dark-600">训练部位<input value={planFocus} onChange={event => setPlanFocus(event.target.value)} placeholder="胸 + 肩 + 三头" className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-4 outline-none focus:border-primary-500" /></label></div><label className="text-xs font-bold text-dark-600 block mt-3">安排日期<select value={planWeekday ?? ''} onChange={event => setPlanWeekday(event.target.value === '' ? undefined : Number(event.target.value))} className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-4 bg-white"><option value="">不指定日期</option>{['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((day, index) => <option key={day} value={index}>{day}</option>)}</select></label><p className="text-xs font-bold text-dark-600 mt-4 mb-2">选择动作 · 默认 3组 × 8次</p><div className="grid grid-cols-2 gap-2">{exercises.map(exercise => { const selected = planExerciseIds.includes(exercise.id); return <button key={exercise.id} onClick={() => setPlanExerciseIds(current => selected ? current.filter(id => id !== exercise.id) : [...current, exercise.id])} className={`min-h-11 px-3 rounded-xl border-2 text-sm text-left flex items-center gap-2 ${selected ? 'border-primary-500 bg-primary-50 text-primary-700 font-bold' : 'border-dark-200 text-dark-600'}`}><span className={`w-5 h-5 rounded-md flex items-center justify-center ${selected ? 'bg-primary-500 text-white' : 'bg-dark-100'}`}>{selected && <Check className="w-3.5 h-3.5" />}</span>{exercise.name}</button>; })}</div><button onClick={createPlan} disabled={!planName.trim() || !planExerciseIds.length} className="btn-accent w-full min-h-12 mt-5 disabled:opacity-50">保存训练计划</button></div></div>}
+
+      {aiPlanOpen && <div className="fixed inset-0 z-[80] bg-dark-950/70 flex items-end md:items-center justify-center"><div className="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-3xl border-2 border-dark-950 p-5 pb-[calc(20px+env(safe-area-inset-bottom))]"><div className="flex justify-between"><div><p className="text-xs text-primary-600 font-bold">AI PROGRAM BUILDER</p><h2 className="font-display text-2xl text-dark-950 mt-1">让 AI 创建训练计划</h2></div><button onClick={() => setAiPlanOpen(false)} className="w-10 h-10 rounded-full bg-dark-100 flex items-center justify-center"><X className="w-5 h-5" /></button></div><div className="grid grid-cols-2 gap-3 mt-6"><label className="text-xs font-bold text-dark-600">目标<select value={aiPlanForm.goal} onChange={event => setAiPlanForm({ ...aiPlanForm, goal: event.target.value })} className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-3 bg-white"><option>增肌</option><option>减脂</option><option>提升力量</option><option>塑形</option></select></label><label className="text-xs font-bold text-dark-600">训练水平<select value={aiPlanForm.level} onChange={event => setAiPlanForm({ ...aiPlanForm, level: event.target.value })} className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-3 bg-white"><option>初级</option><option>中级</option><option>高级</option></select></label><label className="text-xs font-bold text-dark-600">每周训练天数<input type="number" min="1" max="6" value={aiPlanForm.days} onChange={event => setAiPlanForm({ ...aiPlanForm, days: Math.max(1, Math.min(6, Number(event.target.value) || 1)) })} className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-3" /></label><label className="text-xs font-bold text-dark-600">器械<input value={aiPlanForm.equipment} onChange={event => setAiPlanForm({ ...aiPlanForm, equipment: event.target.value })} className="mt-1 w-full h-12 rounded-xl border-2 border-dark-300 px-3" /></label></div><p className="text-xs text-dark-500 mt-4">生成后会直接保存到你的账号，并在手机和电脑同步显示。</p><button onClick={createAIPlans} disabled={aiPlanGenerating} className="btn-accent w-full min-h-14 mt-5 disabled:opacity-50">{aiPlanGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}{aiPlanGenerating ? 'AI 正在编排…' : '生成并保存计划'}</button></div></div>}
     </div>
   );
 }

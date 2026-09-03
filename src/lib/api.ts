@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================
 // FitZone 真实后端 API 客户端
 // 所有数据存服务器(data/*.json),支持邮箱注册/登录、社区真实发帖等
@@ -263,11 +264,11 @@ export const mealsApi = {
     }));
   },
 
-  // 添加饮食(默认即视为"已吃",自动出现在已吃记录)
+  // 添加已吃记录或未来餐食计划。
   addMeal: async (data: any) => {
     const meal = await request('/meals', {
       method: 'POST',
-      body: JSON.stringify({ ...data, eaten: true }),
+      body: JSON.stringify({ ...data, eaten: data.eaten !== false }),
     });
     return meal;
   },
@@ -283,6 +284,14 @@ export const mealsApi = {
   deleteMeal: async (mealId: string) => {
     return request(`/meals/${mealId}`, { method: 'DELETE' });
   },
+};
+
+export const nutritionApi = {
+  getProfile: async () => request('/nutrition/profile', { method: 'GET' }),
+  saveProfile: async (data: any) => request('/nutrition/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
 };
 
 // ==================== 训练打卡(日历) API ====================
@@ -364,6 +373,15 @@ export const workoutPlansApi = {
     body: JSON.stringify(data),
   }),
   deletePlan: async (id: string) => request(`/workout-plans/${id}`, { method: 'DELETE' }),
+};
+
+export const planGeneratorApi = {
+  workout: async (data: { goal: string; level: string; equipment: string; days: number }) => request('/ai/generate/workout-plan', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
+  meals: async (data: { goal: string; calories: number; preferences: string }) => request('/ai/generate/meal-plan', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
 };
 
 // ==================== 收藏 API ====================

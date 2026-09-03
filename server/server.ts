@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -26,8 +27,10 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 async function redisGet(name: string): Promise<any[] | null> {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
   try {
-    const resp = await fetch(`${UPSTASH_URL}/get/${name}`, {
-      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+    const resp = await fetch(UPSTASH_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(['GET', name]),
     });
     const data: any = await resp.json();
     if (data && data.result) return JSON.parse(data.result);
@@ -41,8 +44,10 @@ async function redisGet(name: string): Promise<any[] | null> {
 async function redisSet(name: string, data: any[]): Promise<void> {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
   try {
-    await fetch(`${UPSTASH_URL}/set/${name}/${encodeURIComponent(JSON.stringify(data))}`, {
-      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+    await fetch(UPSTASH_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(['SET', name, JSON.stringify(data)]),
     });
   } catch (e) {
     console.warn('[Redis] 写入失败', name, e);
@@ -92,6 +97,7 @@ let workoutPlans = loadDB('workout_plans');
 let personalRecords = loadDB('personal_records');
 let checkins = loadDB('checkins');
 let mealPlans = loadDB('meal_plans');
+let nutritionProfiles = loadDB('nutrition_profiles');
 let favorites = loadDB('favorites');
 
 // 从 Redis 加载全部表(有配置时优先用远端数据,保证多实例/重启持久)
@@ -110,6 +116,7 @@ function applyRemoteTable(name: string, data: any[]) {
     case 'personal_records': personalRecords = data; break;
     case 'checkins': checkins = data; break;
     case 'meal_plans': mealPlans = data; break;
+    case 'nutrition_profiles': nutritionProfiles = data; break;
     case 'favorites': favorites = data; break;
   }
 }
@@ -117,7 +124,7 @@ function applyRemoteTable(name: string, data: any[]) {
 const DB_TABLES = [
   'users', 'verification_codes', 'friendships', 'messages', 'posts',
   'post_likes', 'post_comments', 'workout_records', 'exercises', 'workout_plans',
-  'personal_records', 'checkins', 'meal_plans', 'favorites',
+  'personal_records', 'checkins', 'meal_plans', 'nutrition_profiles', 'favorites',
 ];
 
 async function loadAllFromRedis() {
@@ -125,7 +132,7 @@ async function loadAllFromRedis() {
   for (const name of DB_TABLES) {
     try {
       const remote = await redisGet(name);
-      if (remote && Array.isArray(remote) && remote.length > 0) {
+      if (Array.isArray(remote)) {
         applyRemoteTable(name, remote);
       }
     } catch (e) {
@@ -155,7 +162,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // ==================== 用户认证 API ====================
 
@@ -437,8 +444,6 @@ app.put('/api/auth/me', authenticateToken, (req, res) => {
   const { nickname, avatar, bio } = req.body;
   const userId = req.user.userId;
 
-  const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
-
   const user = users.find(u => u.id === userId);
   if (!user) {
     return res.status(404).json({ error: '用户不存在' });
@@ -446,17 +451,16 @@ app.put('/api/auth/me', authenticateToken, (req, res) => {
 
   if (nickname) user.nickname = nickname;
 
-  // 安全处理头像：拒绝base64，确保是正常URL
+  // 接受普通 URL 或前端压缩后的图片，保存到账号以便跨设备同步。
   if (avatar) {
-    if (typeof avatar === 'string' && avatar.startsWith('data:')) {
-      // base64头像直接拒绝，使用默认头像
-      user.avatar = DEFAULT_AVATAR;
-    } else if (typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://'))) {
-      // 只接受http/https开头的正常URL
+    const isImageData = typeof avatar === 'string' && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(avatar);
+    const isRemoteImage = typeof avatar === 'string' && /^https?:\/\//i.test(avatar);
+    if (isImageData && avatar.length <= 750_000) {
+      user.avatar = avatar;
+    } else if (isRemoteImage && avatar.length <= 2_000) {
       user.avatar = avatar;
     } else {
-      // 其他情况用默认头像
-      user.avatar = DEFAULT_AVATAR;
+      return res.status(400).json({ error: '头像格式不支持或图片过大' });
     }
   }
 
@@ -896,6 +900,31 @@ app.post('/api/checkins', authenticateToken, (req, res) => {
 
 // ==================== 饮食计划 API ====================
 
+app.get('/api/nutrition/profile', authenticateToken, (req, res) => {
+  const profile = nutritionProfiles.find(row => row.userId === req.user.userId);
+  res.json(profile || null);
+});
+
+app.put('/api/nutrition/profile', authenticateToken, (req, res) => {
+  const allowedGenders = ['male', 'female'];
+  const allowedActivities = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
+  const allowedGoals = ['lose', 'maintain', 'gain'];
+  const profile = {
+    userId: req.user.userId,
+    gender: allowedGenders.includes(req.body.gender) ? req.body.gender : 'male',
+    age: Math.min(90, Math.max(10, Number(req.body.age) || 25)),
+    height: Math.min(230, Math.max(120, Number(req.body.height) || 172)),
+    weight: Math.min(250, Math.max(30, Number(req.body.weight) || 65)),
+    activity: allowedActivities.includes(req.body.activity) ? req.body.activity : 'light',
+    goal: allowedGoals.includes(req.body.goal) ? req.body.goal : 'maintain',
+    updatedAt: new Date().toISOString(),
+  };
+  const index = nutritionProfiles.findIndex(row => row.userId === req.user.userId);
+  if (index < 0) nutritionProfiles.push(profile); else nutritionProfiles[index] = profile;
+  saveDB('nutrition_profiles', nutritionProfiles);
+  res.json(profile);
+});
+
 app.get('/api/meals', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const { date } = req.query;
@@ -1039,8 +1068,6 @@ app.use('/api/ai', aiRoutes);
 // ==================== 种子数据(仅首次启动) ====================
 // 社区需要一些内容才像真实产品;发帖接口仍要求登录(真实用户才能发帖)
 function seedDatabase() {
-  const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
-
   // 种子用户(演示/历史内容,非可登录账号)
   const seedUsers = [
     { nickname: '帕梅拉教练', bio: '专业健身教练，每天带练', seed: 'pamela' },

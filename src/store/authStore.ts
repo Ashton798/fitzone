@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { User } from '@/types';
 
@@ -11,7 +12,7 @@ interface AuthState {
 
 const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
 
-// 安全加载用户数据 - 自动修复base64头像等问题
+// 安全加载用户数据。头像可能是服务器保存的压缩 data URL。
 const safeLoadUser = (): User | null => {
   try {
     const stored = localStorage.getItem('fitzone_user');
@@ -19,12 +20,6 @@ const safeLoadUser = (): User | null => {
 
     const user = JSON.parse(stored);
     let needFix = false;
-
-    // 修复base64头像
-    if (user.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('data:')) {
-      user.avatar = DEFAULT_AVATAR;
-      needFix = true;
-    }
 
     // 修复空头像
     if (!user.avatar) {
@@ -43,7 +38,7 @@ const safeLoadUser = (): User | null => {
     }
 
     return user as User;
-  } catch (e) {
+  } catch {
     // 数据损坏，直接清除
     localStorage.removeItem('fitzone_user');
     localStorage.removeItem('fitzone_token');
@@ -59,12 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     isLoggedIn: !!initialUser && !!localStorage.getItem('fitzone_token'),
 
     login: (userData: any) => {
-      const safeUser = {
-        ...userData,
-        avatar: (userData.avatar && !userData.avatar.startsWith('data:'))
-          ? userData.avatar
-          : DEFAULT_AVATAR,
-      };
+      const safeUser = { ...userData, avatar: userData.avatar || DEFAULT_AVATAR };
       localStorage.setItem('fitzone_user', JSON.stringify(safeUser));
       set({ user: safeUser, isLoggedIn: true });
     },
@@ -79,16 +69,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const { user } = get();
       if (!user) return;
 
-      const updatedData = { ...data };
-
-      // 安全处理头像
-      if (updatedData.avatar) {
-        if (typeof updatedData.avatar === 'string' && updatedData.avatar.startsWith('data:')) {
-          updatedData.avatar = DEFAULT_AVATAR;
-        }
-      }
-
-      const updatedUser = { ...user, ...updatedData };
+      const updatedUser = { ...user, ...data };
       localStorage.setItem('fitzone_user', JSON.stringify(updatedUser));
       set({ user: updatedUser });
     },
@@ -98,6 +79,5 @@ export const useAuthStore = create<AuthState>((set, get) => {
 // 安全获取头像URL的工具函数
 export const getSafeAvatar = (avatar?: string): string => {
   if (!avatar) return DEFAULT_AVATAR;
-  if (typeof avatar === 'string' && avatar.startsWith('data:')) return DEFAULT_AVATAR;
   return avatar;
 };

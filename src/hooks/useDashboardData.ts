@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getToken, mealsApi, workoutPlansApi, workoutsApi } from '@/lib/api';
+import { getToken, mealsApi, nutritionApi, workoutPlansApi, workoutsApi } from '@/lib/api';
 import { calcNutritionTargets, loadNutritionProfile } from '@/lib/nutrition';
 import type { Workout, WorkoutPlan, WorkoutStats } from '@/types';
 
@@ -17,7 +17,14 @@ export function useDashboardData() {
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [meals, setMeals] = useState<MealSummary>({ calories: 0, protein: 0 });
-  const targets = useMemo(() => calcNutritionTargets(loadNutritionProfile()), []);
+  const [targets, setTargets] = useState(() => calcNutritionTargets(loadNutritionProfile()));
+
+  useEffect(() => {
+    if (!getToken()) return;
+    nutritionApi.getProfile().then(profile => {
+      if (profile) setTargets(calcNutritionTargets(profile));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!getToken()) return;

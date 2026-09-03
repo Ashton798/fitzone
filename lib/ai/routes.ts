@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================
 // AI 路由模块
 // 所有 AI 接口都支持 mock 兜底：未配置 API Key 时走 mock 实现
@@ -241,6 +242,65 @@ router.post('/voice/tts', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[AI TTS] 错误:', err);
     res.status(500).json({ error: err.message || '语音合成失败' });
+  }
+});
+
+const parseJSONObject = (text: string) => {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('AI 返回格式不完整');
+  return JSON.parse(text.slice(start, end + 1));
+};
+
+const fallbackWorkoutPlan = (goal: string, days: number) => {
+  const templates = [
+    { name: 'Push', focus: '胸 + 肩 + 三头', exercises: [['bench-press', '卧推'], ['incline-dumbbell-press', '上斜哑铃卧推'], ['overhead-press', '肩推'], ['lateral-raise', '侧平举'], ['rope-pushdown', '绳索下压']] },
+    { name: 'Pull', focus: '背 + 二头', exercises: [['pull-up', '引体向上'], ['lat-pulldown', '高位下拉'], ['seated-row', '坐姿划船'], ['dumbbell-curl', '哑铃弯举']] },
+    { name: 'Legs', focus: '腿 + 核心', exercises: [['squat', '深蹲'], ['deadlift', '硬拉'], ['leg-press', '腿举']] },
+  ];
+  return templates.slice(0, Math.max(1, Math.min(days, 3))).map((template, index) => ({
+    ...template,
+    name: days === 1 ? `${goal || '全身'}训练` : template.name,
+    weekday: [1, 3, 5][index],
+    exercises: template.exercises.map(([exerciseId, exerciseName]) => ({ exerciseId, exerciseName, sets: 3, weight: 0, reps: 8, restSeconds: 90 })),
+  }));
+};
+
+router.post('/generate/workout-plan', async (req: Request, res: Response) => {
+  const goal = String(req.body?.goal || '增肌').slice(0, 40);
+  const level = String(req.body?.level || '初级').slice(0, 20);
+  const equipment = String(req.body?.equipment || '健身房器械').slice(0, 80);
+  const days = Math.max(1, Math.min(6, Number(req.body?.days) || 3));
+  try {
+    if (!isDeepSeekConfigured()) return res.json({ plans: fallbackWorkoutPlan(goal, days), mode: 'fallback' });
+    const text = await deepseekChat([{ role: 'user', content: `请为${level}训练者生成每周${days}天、目标为${goal}、可用器械为${equipment}的训练计划。只输出 JSON：{"plans":[{"name":"Push","focus":"胸+肩+三头","weekday":1,"exercises":[{"exerciseId":"bench-press","exerciseName":"卧推","sets":3,"weight":0,"reps":8,"restSeconds":90}]}]}。动作仅可从这些 id 中选择：bench-press卧推、incline-dumbbell-press上斜哑铃卧推、squat深蹲、deadlift硬拉、pull-up引体向上、lat-pulldown高位下拉、seated-row坐姿划船、dumbbell-curl哑铃弯举、rope-pushdown绳索下压、lateral-raise侧平举、leg-press腿举、overhead-press肩推。不要输出 Markdown。` }]);
+    const parsed = parseJSONObject(text);
+    if (!Array.isArray(parsed.plans) || !parsed.plans.length) throw new Error('计划为空');
+    res.json({ plans: parsed.plans.slice(0, days), mode: 'real' });
+  } catch (error: any) {
+    res.json({ plans: fallbackWorkoutPlan(goal, days), mode: 'fallback', warning: error.message });
+  }
+});
+
+const fallbackMeals = (calories: number) => [
+  { mealType: 'breakfast', name: '燕麦牛奶 + 鸡蛋 + 香蕉', calories: Math.round(calories * .25), protein: 28, carbs: 62, fat: 15, description: '提前准备，作为早餐计划', eaten: false },
+  { mealType: 'lunch', name: '鸡胸肉米饭 + 西兰花', calories: Math.round(calories * .35), protein: 48, carbs: 78, fat: 16, description: '训练日均衡午餐', eaten: false },
+  { mealType: 'dinner', name: '清蒸鱼 + 红薯 + 蔬菜', calories: Math.round(calories * .30), protein: 42, carbs: 55, fat: 14, description: '高蛋白晚餐', eaten: false },
+  { mealType: 'snack', name: '酸奶 + 坚果', calories: Math.round(calories * .10), protein: 15, carbs: 20, fat: 10, description: '加餐计划', eaten: false },
+];
+
+router.post('/generate/meal-plan', async (req: Request, res: Response) => {
+  const goal = String(req.body?.goal || '保持').slice(0, 40);
+  const preferences = String(req.body?.preferences || '家常饮食').slice(0, 120);
+  const calories = Math.max(1200, Math.min(5000, Number(req.body?.calories) || 2200));
+  try {
+    if (!isDeepSeekConfigured()) return res.json({ meals: fallbackMeals(calories), mode: 'fallback' });
+    const text = await deepseekChat([{ role: 'user', content: `为目标${goal}、每日约${calories}千卡、偏好${preferences}的用户生成一天餐单。只输出 JSON：{"meals":[{"mealType":"breakfast","name":"食物和份量","calories":500,"protein":30,"carbs":60,"fat":15,"description":"准备说明","eaten":false}]}。必须包含 breakfast、lunch、dinner，可选 snack；营养数字合理且总热量接近目标。不要输出 Markdown。` }]);
+    const parsed = parseJSONObject(text);
+    if (!Array.isArray(parsed.meals) || !parsed.meals.length) throw new Error('餐单为空');
+    res.json({ meals: parsed.meals.slice(0, 5).map((meal: any) => ({ ...meal, eaten: false })), mode: 'real' });
+  } catch (error: any) {
+    res.json({ meals: fallbackMeals(calories), mode: 'fallback', warning: error.message });
   }
 });
 

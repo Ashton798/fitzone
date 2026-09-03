@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================
 // Vercel Serverless Function 入口
 // 将 Express 应用导出为 Vercel Function,处理所有 /api/* 请求
@@ -33,6 +34,7 @@ interface DB {
   workoutPlans: any[];
   personalRecords: any[];
   mealPlans: any[];
+  nutritionProfiles: any[];
   favorites: any[];
   checkins: any[];
 }
@@ -101,6 +103,7 @@ function initDB(): DB {
     workoutPlans: [],
     personalRecords: [],
     mealPlans: [],
+    nutritionProfiles: [],
     favorites: [],
     checkins: []
   };
@@ -110,14 +113,15 @@ if (!globalForDb.__fitzoneDB) {
   globalForDb.__fitzoneDB = initDB();
 }
 
-let db = globalForDb.__fitzoneDB!;
+const db = globalForDb.__fitzoneDB!;
+db.nutritionProfiles ||= [];
 
 // ==================== 中间件 ====================
 app.use(cors({
   origin: true,  // 允许所有来源(同域部署,无需 CORS 限制)
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // ==================== JWT 认证中间件 ====================
 function authenticateToken(req: any, res: any, next: any) {
@@ -347,15 +351,16 @@ app.put('/api/auth/me', authenticateToken, (req: any, res: any) => {
   const user = db.users.find(u => u.id === req.user.userId);
   if (!user) return res.status(404).json({ error: '用户不存在' });
 
-  const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
   if (nickname) user.nickname = nickname;
   if (avatar) {
-    if (typeof avatar === 'string' && avatar.startsWith('data:')) {
-      user.avatar = DEFAULT_AVATAR;
-    } else if (typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://'))) {
+    const isImageData = typeof avatar === 'string' && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(avatar);
+    const isRemoteImage = typeof avatar === 'string' && /^https?:\/\//i.test(avatar);
+    if (isImageData && avatar.length <= 750_000) {
+      user.avatar = avatar;
+    } else if (isRemoteImage && avatar.length <= 2_000) {
       user.avatar = avatar;
     } else {
-      user.avatar = DEFAULT_AVATAR;
+      return res.status(400).json({ error: '头像格式不支持或图片过大' });
     }
   }
   if (bio !== undefined) user.bio = bio;
@@ -483,6 +488,29 @@ app.post('/api/favorites', authenticateToken, (req: any, res: any) => {
 });
 
 // ==================== 饮食计划 API ====================
+app.get('/api/nutrition/profile', authenticateToken, (req: any, res: any) => {
+  res.json(db.nutritionProfiles.find(row => row.userId === req.user.userId) || null);
+});
+
+app.put('/api/nutrition/profile', authenticateToken, (req: any, res: any) => {
+  const allowedGenders = ['male', 'female'];
+  const allowedActivities = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
+  const allowedGoals = ['lose', 'maintain', 'gain'];
+  const profile = {
+    userId: req.user.userId,
+    gender: allowedGenders.includes(req.body.gender) ? req.body.gender : 'male',
+    age: Math.min(90, Math.max(10, Number(req.body.age) || 25)),
+    height: Math.min(230, Math.max(120, Number(req.body.height) || 172)),
+    weight: Math.min(250, Math.max(30, Number(req.body.weight) || 65)),
+    activity: allowedActivities.includes(req.body.activity) ? req.body.activity : 'light',
+    goal: allowedGoals.includes(req.body.goal) ? req.body.goal : 'maintain',
+    updatedAt: new Date().toISOString(),
+  };
+  const index = db.nutritionProfiles.findIndex(row => row.userId === req.user.userId);
+  if (index < 0) db.nutritionProfiles.push(profile); else db.nutritionProfiles[index] = profile;
+  res.json(profile);
+});
+
 app.get('/api/meals', authenticateToken, (req: any, res: any) => {
   let userMeals = db.mealPlans.filter(m => m.userId === req.user.userId);
   if (req.query.date) userMeals = userMeals.filter(m => m.date === req.query.date);

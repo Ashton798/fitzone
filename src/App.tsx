@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { useEffect, Component, ReactNode } from 'react';
+import { useEffect, Component, ReactNode, ErrorInfo } from 'react';
 import Home from "@/pages/Home";
 import Videos from "@/pages/Videos";
 import VideoDetail from "@/pages/VideoDetail";
@@ -18,8 +18,8 @@ import MobileWorkoutPage from "@/pages/mobile/MobileWorkoutPage";
 import DesktopLayout from "@/layouts/DesktopLayout";
 import MobileLayout from "@/layouts/MobileLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
-
-const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
+import { authApi, getToken } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 
 // ==================== 全局错误边界 ====================
 // 防止任何子组件渲染异常导致整个应用白屏
@@ -36,7 +36,7 @@ class GlobalErrorBoundary extends Component<
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: any) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary] 捕获到渲染异常:', error, info);
   }
 
@@ -99,32 +99,25 @@ function ResponsiveApp() {
 }
 
 export default function App() {
-  // 应用启动时安全检查：清理base64头像等可能导致白屏的数据
+  const updateUser = useAuthStore(state => state.updateUser);
+
+  // 每次打开应用都从账号读取最新资料，保证手机和电脑一致。
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('fitzone_user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        let needFix = false;
-        // 检查头像是否是base64
-        if (user.avatar && (typeof user.avatar === 'string') && user.avatar.startsWith('data:')) {
-          user.avatar = DEFAULT_AVATAR;
-          needFix = true;
-        }
-        // 检查头像是否为空
-        if (!user.avatar) {
-          user.avatar = DEFAULT_AVATAR;
-          needFix = true;
-        }
-        if (needFix) {
-          localStorage.setItem('fitzone_user', JSON.stringify(user));
-        }
+    if (!getToken()) return;
+    const syncAccount = async () => {
+      let latest = await authApi.getCurrentUser();
+      const legacyAvatar = localStorage.getItem('fitzone_local_avatar');
+      if (legacyAvatar?.startsWith('data:image/')) {
+        const migrated = await authApi.updateUser({ avatar: legacyAvatar });
+        latest = { ...latest, ...migrated.user };
+        localStorage.removeItem('fitzone_local_avatar');
       }
-    } catch (e) {
-      // 如果localStorage数据损坏，清除它
-      localStorage.removeItem('fitzone_user');
-    }
-  }, []);
+      updateUser(latest);
+    };
+    syncAccount().catch(() => {
+      // 离线时保留上次成功同步的资料与待迁移头像。
+    });
+  }, [updateUser]);
 
   return (
     <GlobalErrorBoundary>

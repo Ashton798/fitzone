@@ -116,6 +116,6 @@ export function useWorkoutSession() {
 
   return {
     active, exercises, plans, todayPlan, lastByExercise, loading, saving, error, completed, completedSets,
-    setError, setCompleted, setActive, start, addExercise, updateSet, toggleSet, addSet, finish,
+    setError, setCompleted, setActive, refresh: load, start, addExercise, updateSet, toggleSet, addSet, finish,
   };
 }
