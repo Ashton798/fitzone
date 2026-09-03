@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, no-extra-boolean-cast */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Check, ChevronRight, Clock3, Dumbbell, History, Loader2, Plus, Save, Sparkles, TrendingUp, Trophy, X } from 'lucide-react';
 import { useWorkoutSession } from '@/hooks/useWorkoutSession';
 import { planGeneratorApi, workoutPlansApi, workoutsApi } from '@/lib/api';
 import type { Exercise, Workout, WorkoutStats } from '@/types';
+import { requestReminderPermission, sendWorkoutReminder } from '@/lib/reminders';
 
 const formatElapsed = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 const formatDate = (date: string) => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(`${date}T00:00:00`));
@@ -16,6 +17,9 @@ export default function MobileWorkoutPage() {
   const [history, setHistory] = useState<Workout[]>([]);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [restLeft, setRestLeft] = useState(0);
+  const [restExerciseName, setRestExerciseName] = useState('');
+  const restRunning = useRef(false);
   const activeStartedAt = session.active?.startedAt;
 
   useEffect(() => {
@@ -36,15 +40,39 @@ export default function MobileWorkoutPage() {
       .catch(() => {});
   }, [session.active?.id, session.completed?.id]);
 
+  useEffect(() => {
+    if (restLeft <= 0) return;
+    const timer = window.setInterval(() => setRestLeft(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [restLeft > 0]);
+
+  useEffect(() => {
+    if (restLeft !== 0 || !restRunning.current) return;
+    restRunning.current = false;
+    sendWorkoutReminder('休息结束', `${restExerciseName}可以开始下一组了`, 'mobile-rest-finished');
+  }, [restLeft, restExerciseName]);
+
   const createAIPlans = async () => {
     setAiGenerating(true);
     try {
+      requestReminderPermission();
       const generated = await planGeneratorApi.workout({ goal: '增肌', level: '初级', equipment: '健身房器械', days: 3 }) as { plans: Array<any> };
-      await Promise.all(generated.plans.map(plan => workoutPlansApi.createPlan(plan)));
+      await Promise.all(generated.plans.map(plan => workoutPlansApi.createPlan({ ...plan, reminderEnabled: plan.weekday !== undefined, reminderTime: '18:00' })));
       await session.refresh();
     } catch (error: any) {
       session.setError(error.message || 'AI 计划生成失败');
     } finally { setAiGenerating(false); }
+  };
+
+  const toggleSetWithReminder = (exerciseId: string, setId: string) => {
+    const exercise = session.active?.exercises.find(item => item.id === exerciseId);
+    const set = exercise?.sets.find(item => item.id === setId);
+    session.toggleSet(exerciseId, setId);
+    if (!set?.completed && exercise) {
+      restRunning.current = true;
+      setRestExerciseName(exercise.exerciseName);
+      setRestLeft(exercise.restSeconds);
+    }
   };
 
   if (session.loading) return <div className="min-h-[70dvh] flex items-center justify-center text-sm text-dark-500"><Dumbbell className="w-5 h-5 mr-2 animate-pulse" />正在准备训练</div>;
@@ -82,7 +110,7 @@ export default function MobileWorkoutPage() {
                 <span className="font-anton text-center text-dark-400">{index + 1}</span>
                 <label className="relative"><input aria-label={`${exercise.exerciseName}第${index + 1}组重量`} type="number" inputMode="decimal" min="0" step="0.5" value={set.weight || ''} placeholder="0" onFocus={event => event.currentTarget.select()} onChange={event => session.updateSet(exercise.id, set.id, { weight: event.target.value === '' ? 0 : Number(event.target.value) })} className="w-full h-14 rounded-xl border-2 border-dark-300 bg-white pl-2 pr-7 text-center font-anton text-xl text-dark-950 outline-none focus:border-primary-500" /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-dark-400">kg</span></label>
                 <label className="relative"><input aria-label={`${exercise.exerciseName}第${index + 1}组次数`} type="number" inputMode="numeric" min="0" step="1" value={set.reps || ''} placeholder="0" onFocus={event => event.currentTarget.select()} onChange={event => session.updateSet(exercise.id, set.id, { reps: event.target.value === '' ? 0 : Number(event.target.value) })} className="w-full h-14 rounded-xl border-2 border-dark-300 bg-white pl-2 pr-7 text-center font-anton text-xl text-dark-950 outline-none focus:border-primary-500" /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-dark-400">次</span></label>
-                <button aria-label={`${set.completed ? '取消' : '完成'}第${index + 1}组`} onClick={() => session.toggleSet(exercise.id, set.id)} className={`w-[54px] h-14 rounded-xl border-2 flex items-center justify-center active:scale-90 transition-transform ${set.completed ? 'bg-vibe-green border-dark-950 text-dark-950 shadow-[2px_2px_0_#0A1A2F]' : 'bg-white border-dark-300 text-dark-300'}`}><Check className="w-7 h-7" strokeWidth={3} /></button>
+                <button aria-label={`${set.completed ? '取消' : '完成'}第${index + 1}组`} onClick={() => toggleSetWithReminder(exercise.id, set.id)} className={`w-[54px] h-14 rounded-xl border-2 flex items-center justify-center active:scale-90 transition-transform ${set.completed ? 'bg-vibe-green border-dark-950 text-dark-950 shadow-[2px_2px_0_#0A1A2F]' : 'bg-white border-dark-300 text-dark-300'}`}><Check className="w-7 h-7" strokeWidth={3} /></button>
               </div>)}
               <button onClick={() => session.addSet(exercise.id)} className="w-full min-h-12 rounded-xl border-2 border-dashed border-primary-300 text-primary-600 font-bold flex items-center justify-center gap-2 active:bg-primary-50"><Plus className="w-4 h-4" />添加一组 <span className="text-xs font-normal text-dark-400">复制上一组</span></button>
             </div>
@@ -90,6 +118,8 @@ export default function MobileWorkoutPage() {
         })}
         {!session.active.exercises.length && <div className="mobile-ticket bg-white px-5 py-10 text-center"><Dumbbell className="w-10 h-10 mx-auto text-primary-300" /><h2 className="font-display text-xl text-dark-950 mt-3">添加第一个动作</h2><p className="text-sm text-dark-500 mt-1">动作会自动带出你的上次成绩</p><button onClick={() => setPickerOpen(true)} className="btn-primary min-h-12 mt-5"><Plus className="w-4 h-4" />添加动作</button></div>}
       </div>
+
+      {restLeft > 0 && <div className="fixed z-50 left-3 right-3 bottom-[calc(142px+env(safe-area-inset-bottom))] bg-dark-950 text-white border-2 border-accent-400 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3"><Clock3 className="w-6 h-6 text-accent-400" /><div className="flex-1"><p className="text-[10px] text-primary-200">{restExerciseName} · 下一组倒计时</p><p className="font-anton text-3xl text-accent-400 tabular-nums">{Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}</p></div><button onClick={() => setRestLeft(value => value + 30)} className="min-h-10 px-3 rounded-xl bg-white/10 text-xs">+30秒</button><button onClick={() => { restRunning.current = false; setRestLeft(0); }} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center" aria-label="跳过休息"><X className="w-4 h-4" /></button></div>}
 
       <div className="fixed left-0 right-0 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 bg-white/95 backdrop-blur border-t border-dark-200 p-3 grid grid-cols-2 gap-3 shadow-[0_-8px_24px_rgba(10,26,47,.12)]">
         <button onClick={() => setPickerOpen(true)} className="min-h-14 rounded-2xl bg-primary-50 text-primary-700 font-bold flex items-center justify-center gap-2 active:scale-95"><Plus className="w-5 h-5" />添加动作</button>

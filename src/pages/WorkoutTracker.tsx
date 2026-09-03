@@ -10,6 +10,7 @@ import { exercisesApi, getToken, planGeneratorApi, workoutPlansApi, workoutsApi 
 import type {
   Exercise, PersonalRecord, Workout, WorkoutExercise, WorkoutPlan, WorkoutSet, WorkoutStats,
 } from '@/types';
+import { requestReminderPermission, sendWorkoutReminder } from '@/lib/reminders';
 
 type TrackerTab = 'today' | 'history' | 'progress' | 'plans';
 type LastPerformance = { date: string; sets: WorkoutSet[] } | null;
@@ -93,9 +94,13 @@ export default function WorkoutTracker() {
   const [planFocus, setPlanFocus] = useState('');
   const [planWeekday, setPlanWeekday] = useState<number | undefined>(undefined);
   const [planExerciseIds, setPlanExerciseIds] = useState<string[]>([]);
+  const planReminderEnabled = true;
+  const planReminderTime = '18:00';
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const [aiPlanGenerating, setAiPlanGenerating] = useState(false);
   const [aiPlanForm, setAiPlanForm] = useState({ goal: '增肌', level: '初级', equipment: '健身房器械', days: 3 });
+  const restRunning = useRef(false);
+  const [restExerciseName, setRestExerciseName] = useState('');
   const hydrated = useRef(false);
 
   const loadAll = useCallback(async () => {
@@ -156,6 +161,12 @@ export default function WorkoutTracker() {
     return () => window.clearInterval(timer);
   }, [restLeft > 0]);
 
+  useEffect(() => {
+    if (restLeft !== 0 || !restRunning.current) return;
+    restRunning.current = false;
+    sendWorkoutReminder('休息结束', `${restExerciseName || '当前动作'}可以开始下一组了`, 'rest-finished');
+  }, [restLeft, restExerciseName]);
+
   const todayPlan = useMemo(() => plans.find(plan => plan.weekday === new Date().getDay()), [plans]);
   const summary = useMemo(() => {
     if (!active) return { sets: 0, volume: 0, exercises: 0, minutes: 0 };
@@ -171,6 +182,7 @@ export default function WorkoutTracker() {
   const startWorkout = async (plan?: WorkoutPlan) => {
     setError('');
     try {
+      requestReminderPermission();
       const workout = await workoutsApi.startWorkout({ name: plan?.name || '自由训练', planId: plan?.id, date: localDateKey() });
       setActive(workout as Workout);
       setTab('today');
@@ -223,7 +235,11 @@ export default function WorkoutTracker() {
     const exercise = active?.exercises.find(item => item.id === exerciseId);
     const set = exercise?.sets.find(item => item.id === setId);
     updateSet(exerciseId, setId, { completed: !set?.completed });
-    if (!set?.completed && exercise) setRestLeft(exercise.restSeconds);
+    if (!set?.completed && exercise) {
+      restRunning.current = true;
+      setRestExerciseName(exercise.exerciseName);
+      setRestLeft(exercise.restSeconds);
+    }
   };
 
   const removeSet = (exerciseId: string, setId: string) => updateExercise(exerciseId, exercise => ({
@@ -250,8 +266,11 @@ export default function WorkoutTracker() {
   const createPlan = async () => {
     if (!planName.trim() || planExerciseIds.length === 0) return;
     try {
+      if (planReminderEnabled && planWeekday !== undefined) await requestReminderPermission();
       const plan = await workoutPlansApi.createPlan({
         name: planName, focus: planFocus, weekday: planWeekday,
+        reminderEnabled: planReminderEnabled && planWeekday !== undefined,
+        reminderTime: planReminderTime,
         exercises: planExerciseIds.map(id => {
           const exercise = exercises.find(item => item.id === id)!;
           return { exerciseId: id, exerciseName: exercise.name, sets: 3, weight: 0, reps: 8, restSeconds: 90 };
@@ -266,8 +285,9 @@ export default function WorkoutTracker() {
     setAiPlanGenerating(true);
     setError('');
     try {
+      requestReminderPermission();
       const generated = await planGeneratorApi.workout(aiPlanForm) as { plans: Array<any> };
-      const saved = await Promise.all(generated.plans.map(plan => workoutPlansApi.createPlan(plan))) as WorkoutPlan[];
+      const saved = await Promise.all(generated.plans.map(plan => workoutPlansApi.createPlan({ ...plan, reminderEnabled: plan.weekday !== undefined, reminderTime: '18:00' }))) as WorkoutPlan[];
       setPlans(current => [...current, ...saved]);
       setAiPlanOpen(false);
       setTab('plans');
@@ -348,7 +368,7 @@ export default function WorkoutTracker() {
                       </div>
                       <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
                         <button onClick={() => addSet(exercise.id)} className="min-h-12 rounded-xl border-2 border-dashed border-primary-300 text-primary-600 font-bold text-sm hover:bg-primary-50 active:scale-[.98] flex items-center justify-center gap-2"><Plus className="w-4 h-4" />添加一组 <span className="text-xs font-normal text-dark-400">复制上一组</span></button>
-                        <button onClick={() => setRestLeft(exercise.restSeconds)} className="min-w-12 px-3 rounded-xl bg-dark-100 text-dark-600 text-xs"><Clock3 className="w-4 h-4 mx-auto mb-0.5" />{Math.floor(exercise.restSeconds / 60)}:{String(exercise.restSeconds % 60).padStart(2, '0')}</button>
+                        <button onClick={() => { restRunning.current = true; setRestExerciseName(exercise.exerciseName); setRestLeft(exercise.restSeconds); }} className="min-w-12 px-3 rounded-xl bg-dark-100 text-dark-600 text-xs"><Clock3 className="w-4 h-4 mx-auto mb-0.5" />{Math.floor(exercise.restSeconds / 60)}:{String(exercise.restSeconds % 60).padStart(2, '0')}</button>
                       </div>
                     </div>
                   </section>;
@@ -391,7 +411,7 @@ export default function WorkoutTracker() {
         </div>}
       </div>
 
-      {restLeft > 0 && <div className="fixed bottom-[72px] md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-sm bg-dark-950 text-white border-2 border-accent-400 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3"><TimerReset className="w-6 h-6 text-accent-400" /><div className="flex-1"><p className="text-[10px] text-primary-200">休息时间</p><p className="font-anton text-2xl">{Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}</p></div><button onClick={() => setRestLeft(value => value + 30)} className="px-3 py-2 rounded-lg bg-white/10 text-xs">+30秒</button><button onClick={() => setRestLeft(0)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><X className="w-4 h-4" /></button></div>}
+      {restLeft > 0 && <div className="fixed bottom-[72px] md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-sm bg-dark-950 text-white border-2 border-accent-400 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3"><TimerReset className="w-6 h-6 text-accent-400" /><div className="flex-1"><p className="text-[10px] text-primary-200">{restExerciseName} · 休息时间</p><p className="font-anton text-2xl">{Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}</p></div><button onClick={() => setRestLeft(value => value + 30)} className="px-3 py-2 rounded-lg bg-white/10 text-xs">+30秒</button><button onClick={() => { restRunning.current = false; setRestLeft(0); }} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><X className="w-4 h-4" /></button></div>}
 
       {exercisePicker && <div className="fixed inset-0 z-[70] bg-dark-950/60 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setExercisePicker(false)}><div onClick={event => event.stopPropagation()} className="bg-white w-full md:max-w-2xl max-h-[82vh] rounded-t-3xl md:rounded-3xl border-2 border-dark-950 overflow-hidden"><div className="p-4 border-b border-dark-200 flex items-center justify-between"><div><h2 className="font-display text-xl">添加动作</h2><p className="text-xs text-dark-500">点一下即可加入今天训练</p></div><button onClick={() => setExercisePicker(false)} className="w-10 h-10 rounded-full bg-dark-100 flex items-center justify-center"><X className="w-5 h-5" /></button></div><div className="p-3 overflow-y-auto max-h-[60vh] grid sm:grid-cols-2 gap-2">{exercises.map(exercise => <button key={exercise.id} disabled={active?.exercises.some(item => item.exerciseId === exercise.id)} onClick={() => addExercise(exercise)} className="min-h-14 px-4 rounded-xl bg-dark-100 hover:bg-primary-50 disabled:opacity-40 text-left flex items-center gap-3"><span className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-primary-500"><Dumbbell className="w-4 h-4" /></span><span><strong className="block text-sm text-dark-900">{exercise.name}</strong><small className="text-dark-500">{exercise.muscleGroup}{exercise.isCustom ? ' · 自定义' : ''}</small></span></button>)}</div><div className="p-4 border-t border-dark-200"><button onClick={() => setCustomExerciseOpen(true)} className="btn-tonal w-full min-h-12"><Plus className="w-4 h-4" />创建自定义动作</button></div></div></div>}
 

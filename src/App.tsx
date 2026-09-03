@@ -20,6 +20,7 @@ import MobileLayout from "@/layouts/MobileLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { authApi, getToken } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import WorkoutPlanReminder from '@/components/WorkoutPlanReminder';
 
 // ==================== 全局错误边界 ====================
 // 防止任何子组件渲染异常导致整个应用白屏
@@ -94,8 +95,8 @@ function ResponsiveApp() {
   );
 
   return isMobile
-    ? <MobileLayout>{routes}</MobileLayout>
-    : <DesktopLayout>{routes}</DesktopLayout>;
+    ? <MobileLayout><WorkoutPlanReminder />{routes}</MobileLayout>
+    : <DesktopLayout><WorkoutPlanReminder />{routes}</DesktopLayout>;
 }
 
 export default function App() {

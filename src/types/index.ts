@@ -139,6 +139,8 @@ export interface WorkoutPlan {
   name: string;
   focus: string;
   weekday?: number;
+  reminderEnabled?: boolean;
+  reminderTime?: string;
   exercises: WorkoutPlanExercise[];
   createdAt: string;
   updatedAt: string;

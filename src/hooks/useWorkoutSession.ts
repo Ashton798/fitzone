@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exercisesApi, getToken, workoutPlansApi, workoutsApi } from '@/lib/api';
 import type { Exercise, Workout, WorkoutExercise, WorkoutPlan, WorkoutSet } from '@/types';
+import { requestReminderPermission } from '@/lib/reminders';
 
 export type LastPerformance = { date: string; sets: WorkoutSet[] } | null;
 const uid = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -63,6 +64,7 @@ export function useWorkoutSession() {
 
   const start = async (plan?: WorkoutPlan) => {
     try {
+      requestReminderPermission();
       const workout = await workoutsApi.startWorkout({ name: plan?.name || '自由训练', planId: plan?.id, date: localDateKey() });
       setActive(workout as Workout);
     } catch (err: any) { setError(err.message || '无法开始训练'); }

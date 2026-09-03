@@ -282,6 +282,8 @@ export function registerWorkoutRoutes(app: Express, authenticate: RequestHandler
       id: uuidv4(), userId: req.user.userId, name,
       focus: String(req.body?.focus || '').trim(),
       weekday: req.body?.weekday === undefined ? undefined : Math.min(6, Math.max(0, Number(req.body.weekday))),
+      reminderEnabled: !!req.body?.reminderEnabled,
+      reminderTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(String(req.body?.reminderTime || '')) ? req.body.reminderTime : '18:00',
       exercises: (Array.isArray(req.body?.exercises) ? req.body.exercises : []).map((item: any) => ({
         exerciseId: String(item.exerciseId || ''), exerciseName: String(item.exerciseName || ''),
         sets: Math.max(1, Math.round(numberValue(item.sets, 3))), weight: numberValue(item.weight),
@@ -301,6 +303,8 @@ export function registerWorkoutRoutes(app: Express, authenticate: RequestHandler
       ...rows[index], ...req.body, id: rows[index].id, userId: rows[index].userId,
       name: String(req.body?.name || rows[index].name).trim(), updatedAt: new Date().toISOString(),
     };
+    updated.reminderEnabled = !!updated.reminderEnabled;
+    updated.reminderTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(updated.reminderTime || '')) ? updated.reminderTime : '18:00';
     rows[index] = updated;
     store.set('workout_plans', rows);
     res.json(updated);
