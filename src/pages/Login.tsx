@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Dumbbell, Phone, Lock, Eye, EyeOff, ArrowRight, Mail,
-  MessageCircle, Sparkles, AlertCircle, CheckCircle, AtSign, User as UserIcon
+  AlertCircle, CheckCircle, AtSign, User as UserIcon
 } from 'lucide-react';
 import { authApi, setToken } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -126,30 +126,6 @@ const Login = () => {
       else setError(result.error || '登录失败');
     } catch (err: any) {
       setError(err.message || '登录失败');
-    }
-    setLoading(false);
-  };
-
-  const handleWechatLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const result = await authApi.loginWithWechat('mock_code');
-      if (result.success) handleLoginSuccess(result);
-    } catch (err: any) {
-      setError(err.message || '微信登录失败');
-    }
-    setLoading(false);
-  };
-
-  const handleQQLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const result = await authApi.loginWithQQ('mock_code');
-      if (result.success) handleLoginSuccess(result);
-    } catch (err: any) {
-      setError(err.message || 'QQ登录失败');
     }
     setLoading(false);
   };
@@ -346,32 +322,7 @@ const Login = () => {
             </div>
           )}
 
-          {/* 社交登录 */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-dark-300" />
-            <span className="text-sm text-dark-500">其他方式</span>
-            <div className="flex-1 h-px bg-dark-300" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={handleWechatLogin}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 py-3 bg-accent-50 border border-accent-200 text-accent-700 rounded-xl hover:bg-accent-100 transition-all disabled:opacity-50"
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">微信登录</span>
-            </button>
-            <button
-              onClick={handleQQLogin}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 py-3 bg-primary-50 border border-primary-200 text-primary-700 rounded-xl hover:bg-primary-100 transition-all disabled:opacity-50"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">QQ登录</span>
-            </button>
-          </div>
-
-          <div className="mt-6 text-center">
+          <div className="mt-7 pt-5 border-t border-dark-200 text-center">
             <span className="text-dark-500 text-sm">
               {isRegister ? '已有账号？' : '还没有账号？'}
             </span>

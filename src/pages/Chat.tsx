@@ -56,6 +56,11 @@ const Chat = () => {
     }
   }, [selectedUserId]);
 
+  // 路由参数驱动会话（手机上返回列表 / 直接深链打开）
+  useEffect(() => {
+    setSelectedUserId(chatUserId || null);
+  }, [chatUserId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -162,9 +167,13 @@ const Chat = () => {
 
   return (
     <div className="min-h-screen bg-dark-100">
-      <div className="max-w-7xl mx-auto h-[calc(100vh-120px)] flex">
-        {/* Left Sidebar - Conversations */}
-        <div className="w-80 bg-white rounded-l-3xl border border-dark-300 flex flex-col">
+      <div className="max-w-7xl mx-auto app-fill flex bg-white md:bg-transparent">
+        {/* Left Sidebar - Conversations (手机：无选中时全屏列表；桌面：常驻左栏) */}
+        <div
+          className={`flex-col bg-white overflow-hidden w-full md:w-80 shrink-0 md:rounded-l-3xl md:border md:border-r-0 md:border-dark-300 ${
+            selectedUserId ? 'hidden md:flex' : 'flex'
+          }`}
+        >
           {/* Header */}
           <div className="p-4 border-b border-dark-300">
             <div className="flex items-center justify-between mb-4">
@@ -194,7 +203,10 @@ const Chat = () => {
                 {friends.map((friend) => (
                   <button
                     key={friend.id}
-                    onClick={() => setSelectedUserId(friend.id)}
+                    onClick={() => {
+                      setSelectedUserId(friend.id);
+                      navigate(`/chat/${friend.id}`);
+                    }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                       selectedUserId === friend.id
                         ? 'bg-primary-50 text-primary-700'
@@ -222,7 +234,10 @@ const Chat = () => {
                 {conversations.map((conv) => (
                   <button
                     key={conv.user_id}
-                    onClick={() => setSelectedUserId(conv.user_id)}
+                    onClick={() => {
+                      setSelectedUserId(conv.user_id);
+                      navigate(`/chat/${conv.user_id}`);
+                    }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                       selectedUserId === conv.user_id
                         ? 'bg-primary-50 text-primary-700'
@@ -269,13 +284,24 @@ const Chat = () => {
           </div>
         </div>
 
-        {/* Right - Chat Area */}
-        <div className="flex-1 bg-white rounded-r-3xl border border-dark-300 border-l-0 flex flex-col">
+        {/* Right - Chat Area (手机：选中后才占全屏；桌面：常驻右栏) */}
+        <div
+          className={`flex-col flex-1 min-w-0 bg-white overflow-hidden md:rounded-r-3xl md:border md:border-dark-300 md:border-l-0 ${
+            selectedUserId ? 'flex' : 'hidden md:flex'
+          }`}
+        >
           {selectedUserId ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-dark-300 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="p-4 border-b border-dark-300 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    onClick={() => navigate('/chat')}
+                    className="md:hidden w-9 h-9 -ml-1 shrink-0 rounded-full flex items-center justify-center text-dark-600 active:bg-dark-100 transition-colors"
+                    aria-label="返回会话列表"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
                   <img
                     src={getSelectedUser()?.avatar}
                     alt={getSelectedUser()?.nickname}

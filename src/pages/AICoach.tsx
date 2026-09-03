@@ -13,6 +13,29 @@ import {
   voiceTTS, extractVideoFrames,
   createSpeechRecognizer, isSpeechRecognitionSupported, SpeechRecognizer,
 } from '@/lib/aiApi';
+import { workoutsApi } from '@/lib/api';
+
+type WorkoutAIContext = {
+  days: number;
+  workoutCount: number;
+  records: Array<{ date: string; workoutName: string; exerciseId: string; exerciseName: string; sets: Array<{ weight: number; reps: number }> }>;
+};
+
+const answerWorkoutProgress = (question: string, context: WorkoutAIContext | null): string | null => {
+  if (!/(最近|进步|上次|重量|纪录|记录|练多少|训练数据)/.test(question)) return null;
+  if (!context?.records?.length) return '你的账号里还没有足够的训练记录，我暂时无法判断进步情况。先在「训练」里完成并保存几次训练，我就能基于真实数据帮你比较。';
+  const names = [...new Set(context.records.map(item => item.exerciseName))];
+  const matched = names.find(name => question.includes(name));
+  if (!matched) return null;
+  const rows = context.records.filter(item => item.exerciseName === matched && item.sets.length > 0);
+  if (rows.length < 2) return `我只找到 1 次${matched}记录（${rows[0]?.date || '日期未知'}），数据还不足以判断趋势。再记录一次后，我就能做前后对比。`;
+  const bestSet = (sets: Array<{ weight: number; reps: number }>) => [...sets].sort((a, b) => (b.weight * b.reps) - (a.weight * a.reps))[0];
+  const first = bestSet(rows[0].sets);
+  const latest = bestSet(rows.at(-1)!.sets);
+  const delta = latest.weight - first.weight;
+  const direction = delta > 0 ? `提高了 ${delta}kg` : delta < 0 ? `降低了 ${Math.abs(delta)}kg` : '重量保持不变';
+  return `根据你最近 ${context.days} 天真实保存的训练记录：\n\n${matched}工作组从 **${first.weight}kg × ${first.reps}**（${rows[0].date}）变化到 **${latest.weight}kg × ${latest.reps}**（${rows.at(-1)!.date}），${direction}。\n\n建议继续以动作稳定为前提渐进加重；当当前重量能稳定完成目标次数时，再增加 2.5kg。`;
+};
 
 const AICoach = () => {
   const { isLoggedIn } = useAuthStore();
@@ -464,9 +487,23 @@ function UnifiedChat() {
       // —— 纯文字：流式对话 ——
       const controller = new AbortController();
       abortRef.current = controller;
-      const history = [...messages, userMsg]
+      let workoutContext: WorkoutAIContext | null = null;
+      try {
+        workoutContext = await workoutsApi.getAIContext(30);
+      } catch {
+        // 登录失效或后端暂时不可用时，不编造训练数据。
+      }
+      const dataInstruction = workoutContext?.records?.length
+        ? `以下是该用户最近${workoutContext.days}天真实保存的训练数据。只能基于这些记录回答涉及训练进步、重量、次数的问题；不得补造缺失数据。\n${JSON.stringify(workoutContext.records)}`
+        : '当前没有可用的真实训练记录。用户询问自身训练进步、历史重量或次数时，必须明确说明数据不足，并建议先使用训练记录功能保存训练；不得编造数据。';
+      const groundedAnswer = answerWorkoutProgress(text, workoutContext);
+      if (groundedAnswer) {
+        typewriteContent(assistantId, groundedAnswer);
+        return;
+      }
+      const history = [{ role: 'system', content: dataInstruction }, ...messages, userMsg]
         .filter(m => (m.content || '').trim().length > 0)
-        .slice(-10)
+        .slice(-11)
         .map(m => ({ role: m.role, content: m.content }));
       await chatStream(
         history,
@@ -645,7 +682,7 @@ function UnifiedChat() {
   // ============ 欢迎页 ============
   if (!hasMessages) {
     return (
-      <div className="min-h-screen bg-dark-100 flex flex-col items-center px-4 py-10 overflow-y-auto">
+      <div className="min-h-screen bg-dark-100 flex flex-col items-center px-4 py-10 overflow-y-auto pb-tabbar">
         {hiddenInputs}
         <div className="w-full max-w-2xl">
           <div className="text-center mb-8 animate-slide-up">
@@ -716,7 +753,7 @@ function UnifiedChat() {
 
   // ============ 对话页 ============
   return (
-    <div className="min-h-screen bg-dark-100 flex flex-col">
+    <div className="min-h-screen bg-dark-100 flex flex-col app-fill">
       {hiddenInputs}
       <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b border-dark-200 bg-white">
         <div className="flex items-center gap-2">

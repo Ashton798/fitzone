@@ -449,7 +449,7 @@ const Profile = () => {
                     ? `邮箱 ${user.email}`
                     : user?.phone
                       ? `手机号 ${user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}`
-                      : '微信 / QQ 用户'}
+                      : '账号信息未完善'}
                 </p>
               </div>
 

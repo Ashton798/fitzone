@@ -4,7 +4,7 @@ export interface User {
   avatar: string;
   phone?: string;
   email?: string;
-  loginType?: 'wechat' | 'qq' | 'phone' | 'email';
+  loginType?: 'phone' | 'email';
   bio: string;
   level?: number;
   experience?: number;
@@ -79,6 +79,94 @@ export interface ChatMessage {
   images?: string[];      // 图片预览 URL(用户发送的图片)
   videoName?: string;     // 视频文件名(用户发送的视频)
   mode?: string;          // real / mock / fallback
+}
+
+export interface Exercise {
+  id: string;
+  userId?: string;
+  name: string;
+  muscleGroup: string;
+  isCustom?: boolean;
+  createdAt?: string;
+}
+
+export interface WorkoutSet {
+  id: string;
+  weight: number;
+  reps: number;
+  completed: boolean;
+}
+
+export interface WorkoutExercise {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  order: number;
+  restSeconds: number;
+  sets: WorkoutSet[];
+}
+
+export interface Workout {
+  id: string;
+  userId?: string;
+  name: string;
+  date: string;
+  status: 'in_progress' | 'completed';
+  startedAt: string;
+  completedAt?: string;
+  durationMinutes: number;
+  totalVolume: number;
+  completedSets: number;
+  planId?: string;
+  exercises: WorkoutExercise[];
+  newRecords?: PersonalRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkoutPlanExercise {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  weight: number;
+  reps: number;
+  restSeconds: number;
+}
+
+export interface WorkoutPlan {
+  id: string;
+  userId?: string;
+  name: string;
+  focus: string;
+  weekday?: number;
+  exercises: WorkoutPlanExercise[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalRecord {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  weight: number;
+  reps: number;
+  estimatedOneRepMax: number;
+  workoutId: string;
+  achievedAt: string;
+}
+
+export interface WorkoutStats {
+  totalWorkouts: number;
+  thisWeekWorkouts: number;
+  streakDays: number;
+  totalDurationMinutes: number;
+  totalVolume: number;
+  trends: Array<{
+    exerciseId: string;
+    exerciseName: string;
+    points: Array<{ date: string; weight: number; reps: number; estimatedOneRepMax: number }>;
+  }>;
+  personalRecords: PersonalRecord[];
 }
 
 export type Difficulty = 'beginner' | 'intermediate' | 'advanced';

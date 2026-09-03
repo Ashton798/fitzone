@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, User, LogOut, Home, Play, Bot, Users, Utensils, MessageSquare, Bell } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Home, Play, Bot, Users, Utensils, MessageSquare, Bell, Dumbbell } from 'lucide-react';
 import BrandMark from '@/components/BrandMark';
 import { useAuthStore } from '@/store/authStore';
 import { getToken } from '@/lib/api';
@@ -33,6 +33,7 @@ const Navbar = () => {
 
   const navLinks = [
     { path: '/', label: '首页', icon: Home },
+    { path: '/workout', label: '训练', icon: Dumbbell },
     { path: '/videos', label: '视频教学', icon: Play },
     { path: '/ai-coach', label: 'AI 教练', icon: Bot },
     { path: '/community', label: '社区', icon: Users },
@@ -89,7 +90,7 @@ const Navbar = () => {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`px-4 py-2 rounded-full text-sm transition-all duration-200 flex items-center gap-2 ${
+                  className={`px-3 py-2 rounded-full text-sm whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
                     active
                       ? 'bg-white/15 text-white font-bold'
                       : 'text-white/70 hover:text-white hover:bg-white/10'

@@ -108,22 +108,6 @@ export const authApi = {
     });
   },
 
-  // 微信登录(后端 mock openid)
-  loginWithWechat: async (code: string) => {
-    return request('/auth/login-wechat', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    });
-  },
-
-  // QQ登录(后端 mock openid)
-  loginWithQQ: async (code: string) => {
-    return request('/auth/login-qq', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    });
-  },
-
   // 获取当前用户信息(登录后账号记录)
   getCurrentUser: async () => {
     const user = await request('/auth/me', { method: 'GET' });
@@ -320,18 +304,66 @@ export const checkinsApi = {
 
 // ==================== 训练记录 API ====================
 export const workoutsApi = {
-  getWorkouts: async (limit?: number) => {
-    const params = limit ? `?limit=${limit}` : '';
-    const list = await request<any[]>(`/workouts${params}`, { method: 'GET' });
+  getWorkouts: async (limit?: number, status?: 'in_progress' | 'completed') => {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (status) params.set('status', status);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const list = await request<any[]>(`/workouts${query}`, { method: 'GET' });
     return list.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
-  addWorkout: async (data: any) => {
+  getWorkout: async (id: string) => request(`/workouts/${id}`, { method: 'GET' }),
+
+  getActiveWorkout: async () => request('/workouts/active', { method: 'GET' }),
+
+  startWorkout: async (data: { name: string; planId?: string; date?: string }) => {
     return request('/workouts', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
+
+  saveWorkout: async (id: string, data: any) => request(`/workouts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+
+  completeWorkout: async (id: string, data: any) => request(`/workouts/${id}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+
+  deleteWorkout: async (id: string) => request(`/workouts/${id}`, { method: 'DELETE' }),
+
+  getLastPerformance: async (exerciseId: string) =>
+    request(`/workouts/last-exercise/${encodeURIComponent(exerciseId)}`, { method: 'GET' }),
+
+  getStats: async (range: '30d' | '3m' | '6m' | 'all' = '30d') =>
+    request(`/workouts/stats?range=${range}`, { method: 'GET' }),
+
+  getAIContext: async (days = 30) => request(`/workouts/ai-context?days=${days}`, { method: 'GET' }),
+};
+
+export const exercisesApi = {
+  getExercises: async () => request('/exercises', { method: 'GET' }),
+  createExercise: async (data: { name: string; muscleGroup: string }) => request('/exercises', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+};
+
+export const workoutPlansApi = {
+  getPlans: async () => request('/workout-plans', { method: 'GET' }),
+  createPlan: async (data: any) => request('/workout-plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updatePlan: async (id: string, data: any) => request(`/workout-plans/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  deletePlan: async (id: string) => request(`/workout-plans/${id}`, { method: 'DELETE' }),
 };
 
 // ==================== 收藏 API ====================

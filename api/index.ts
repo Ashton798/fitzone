@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import aiRoutes from '../lib/ai/routes.js';
+import { registerWorkoutRoutes, type WorkoutTable } from '../server/workoutRoutes.js';
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'fitzone-secret-key-2024';
@@ -28,6 +29,9 @@ interface DB {
   postLikes: any[];
   postComments: any[];
   workoutRecords: any[];
+  exercises: any[];
+  workoutPlans: any[];
+  personalRecords: any[];
   mealPlans: any[];
   favorites: any[];
   checkins: any[];
@@ -93,6 +97,9 @@ function initDB(): DB {
     postLikes: [],
     postComments: [],
     workoutRecords: [],
+    exercises: [],
+    workoutPlans: [],
+    personalRecords: [],
     mealPlans: [],
     favorites: [],
     checkins: []
@@ -323,58 +330,6 @@ app.post('/api/auth/set-password', authenticateToken, (req: any, res: any) => {
   res.json({ success: true, message: '密码设置成功' });
 });
 
-// 微信登录(mock)
-app.post('/api/auth/login-wechat', (req: any, res: any) => {
-  const mockOpenid = `wechat_${uuidv4().slice(0, 8)}`;
-  let user = db.users.find(u => u.wechatOpenid === mockOpenid);
-  if (!user) {
-    user = {
-      id: uuidv4(),
-      wechatOpenid: mockOpenid,
-      nickname: `微信用户${Math.floor(Math.random() * 10000)}`,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${mockOpenid}`,
-      level: 1, experience: 0,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-    db.users.push(user);
-  }
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({
-    success: true, token,
-    user: {
-      id: user.id, nickname: user.nickname, avatar: user.avatar,
-      level: user.level, experience: user.experience, loginType: 'wechat'
-    }
-  });
-});
-
-// QQ登录(mock)
-app.post('/api/auth/login-qq', (req: any, res: any) => {
-  const mockOpenid = `qq_${uuidv4().slice(0, 8)}`;
-  let user = db.users.find(u => u.qqOpenid === mockOpenid);
-  if (!user) {
-    user = {
-      id: uuidv4(),
-      qqOpenid: mockOpenid,
-      nickname: `QQ用户${Math.floor(Math.random() * 10000)}`,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${mockOpenid}`,
-      level: 1, experience: 0,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-    db.users.push(user);
-  }
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({
-    success: true, token,
-    user: {
-      id: user.id, nickname: user.nickname, avatar: user.avatar,
-      level: user.level, experience: user.experience, loginType: 'qq'
-    }
-  });
-});
-
 // 获取当前用户
 app.get('/api/auth/me', authenticateToken, (req: any, res: any) => {
   const user = db.users.find(u => u.id === req.user.userId);
@@ -493,23 +448,20 @@ app.post('/api/posts/:postId/comments', authenticateToken, (req: any, res: any) 
   res.json({ ...newComment, nickname: user?.nickname, avatar: user?.avatar });
 });
 
-// ==================== 训练记录 API ====================
-app.get('/api/workouts', authenticateToken, (req: any, res: any) => {
-  const userWorkouts = db.workoutRecords.filter(w => w.userId === req.user.userId)
-    .slice(-(parseInt(req.query.limit as string) || 50));
-  res.json(userWorkouts);
-});
-
-app.post('/api/workouts', authenticateToken, (req: any, res: any) => {
-  const { videoId, duration, calories, notes } = req.body;
-  const newWorkout = {
-    id: uuidv4(), userId: req.user.userId, videoId, duration,
-    calories, notes, createdAt: new Date().toISOString()
-  };
-  db.workoutRecords.push(newWorkout);
-  const user = db.users.find(u => u.id === req.user.userId);
-  if (user) user.experience += Math.floor(duration / 10);
-  res.json(newWorkout);
+// ==================== 训练追踪 API ====================
+registerWorkoutRoutes(app, authenticateToken, {
+  get: (table: WorkoutTable) => {
+    if (table === 'exercises') return db.exercises;
+    if (table === 'workout_plans') return db.workoutPlans;
+    if (table === 'personal_records') return db.personalRecords;
+    return db.workoutRecords;
+  },
+  set: (table: WorkoutTable, rows: any[]) => {
+    if (table === 'exercises') db.exercises = rows;
+    else if (table === 'workout_plans') db.workoutPlans = rows;
+    else if (table === 'personal_records') db.personalRecords = rows;
+    else db.workoutRecords = rows;
+  },
 });
 
 // ==================== 收藏 API ====================

@@ -2,14 +2,15 @@ import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
   Play, ArrowRight, Bot, Flame, TrendingUp, ChevronRight,
-  Footprints, Timer, HeartPulse, Activity, Sparkles, CheckCircle2, Zap, Target,
+  Footprints, Timer, HeartPulse, Activity, Sparkles, CheckCircle2, Zap, Target, Dumbbell, CalendarDays, Utensils,
 } from 'lucide-react';
 import CategoryCard from '@/components/CategoryCard';
 import VideoCard from '@/components/VideoCard';
 import PostCard from '@/components/PostCard';
 import { categories } from '@/data/categories';
 import { videos } from '@/data/videos';
-import { postsApi } from '@/lib/api';
+import { getToken, mealsApi, postsApi, workoutPlansApi, workoutsApi } from '@/lib/api';
+import type { Workout, WorkoutPlan, WorkoutStats } from '@/types';
 import { useAppStore } from '@/store/appStore';
 
 /* ============================================================
@@ -73,6 +74,9 @@ const Home = () => {
   const { posts: localPosts } = useAppStore();
   const featuredVideos = videos.slice(0, 4);
   const [hotPosts, setHotPosts] = useState<any[]>(localPosts.slice(0, 3));
+  const [workoutSnapshot, setWorkoutSnapshot] = useState<{
+    workout: Workout | null; plan: WorkoutPlan | null; stats: WorkoutStats | null; calories: number; protein: number;
+  } | null>(null);
   const revealRef = useReveal();
 
   // 社区热帖取真实后端(游客可看),失败时用本地预设
@@ -100,6 +104,25 @@ const Home = () => {
       })
       .catch(() => {});
     return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!getToken()) return;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    Promise.all([
+      workoutsApi.getActiveWorkout(), workoutsApi.getWorkouts(20, 'completed'),
+      workoutPlansApi.getPlans(), workoutsApi.getStats('30d'), mealsApi.getMeals(today),
+    ]).then(([active, history, plans, workoutStats, meals]: any[]) => {
+      const todayWorkout = active || history.find((item: Workout) => item.date === today) || null;
+      const todayPlan = plans.find((item: WorkoutPlan) => item.weekday === new Date().getDay()) || null;
+      const eaten = meals.filter((meal: any) => meal.eaten !== false);
+      setWorkoutSnapshot({
+        workout: todayWorkout, plan: todayPlan, stats: workoutStats,
+        calories: eaten.reduce((sum: number, meal: any) => sum + Number(meal.calories || 0), 0),
+        protein: eaten.reduce((sum: number, meal: any) => sum + Number(meal.protein || 0), 0),
+      });
+    }).catch(() => {});
   }, []);
 
   const [statsVisible, setStatsVisible] = useState(false);
@@ -276,6 +299,48 @@ const Home = () => {
                     />
                   </svg>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ 今日训练 + 饮食闭环 ============ */}
+      <section className="py-12 md:py-16 bg-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-dark opacity-50 pointer-events-none" />
+        <div className="container mx-auto px-4 relative">
+          <div className="flex items-end justify-between gap-4 mb-7">
+            <div>
+              <p className="font-anton text-xs text-primary-500 tracking-[0.25em] mb-2">TODAY'S ROUTINE</p>
+              <h2 className="font-display text-3xl md:text-4xl text-dark-950">今日训练</h2>
+            </div>
+            <Link to="/workout" className="btn-tonal">训练数据 <ChevronRight className="w-4 h-4" /></Link>
+          </div>
+
+          <div className="grid lg:grid-cols-[1.5fr_1fr] gap-5">
+            <div className="surface-card bg-dark-950 text-white p-5 md:p-7 relative overflow-hidden">
+              <div className="absolute -right-8 -top-10 font-anton text-[110px] text-white/[0.035] leading-none">GO</div>
+              <div className="relative flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-accent-400 text-dark-950 flex items-center justify-center shrink-0"><Dumbbell className="w-6 h-6" /></div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-primary-200">今天 · {workoutSnapshot?.workout?.status === 'in_progress' ? '训练进行中' : workoutSnapshot?.workout ? '已完成' : '等待开练'}</p>
+                  <h3 className="font-display text-2xl mt-1">{workoutSnapshot?.workout?.name || workoutSnapshot?.plan?.name || '自由训练'}</h3>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {(workoutSnapshot?.workout?.exercises || workoutSnapshot?.plan?.exercises || []).slice(0, 6).map((exercise: any) => <span key={exercise.id || exercise.exerciseId} className="px-2.5 py-1 rounded-full bg-white/10 text-xs text-primary-100">{exercise.exerciseName}</span>)}
+                    {!workoutSnapshot?.workout?.exercises?.length && !workoutSnapshot?.plan?.exercises?.length && <span className="text-sm text-primary-200">动作可在训练页一键添加</span>}
+                  </div>
+                </div>
+              </div>
+              <Link to="/workout" className="btn-accent w-full md:w-auto min-h-12 mt-6"><Play className="w-4 h-4 fill-current" />{workoutSnapshot?.workout?.status === 'in_progress' ? '继续训练' : '开始训练'}</Link>
+            </div>
+
+            <div className="surface-card bg-white p-5 md:p-6">
+              <div className="flex items-center justify-between mb-5"><div><p className="text-xs text-dark-500">本周训练</p><p className="font-anton text-3xl text-dark-950 mt-1">{workoutSnapshot?.stats?.thisWeekWorkouts || 0}<span className="text-sm text-dark-400"> / 5 次</span></p></div><div className="w-11 h-11 rounded-xl bg-primary-50 text-primary-500 flex items-center justify-center"><CalendarDays className="w-5 h-5" /></div></div>
+              <div className="h-2.5 rounded-full bg-dark-200 overflow-hidden"><div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.min(100, ((workoutSnapshot?.stats?.thisWeekWorkouts || 0) / 5) * 100)}%` }} /></div>
+              <div className="grid grid-cols-3 gap-2 mt-5 pt-5 border-t border-dark-200">
+                <div><p className="text-[10px] text-dark-500">连续训练</p><p className="font-anton text-xl text-dark-950 mt-1">{workoutSnapshot?.stats?.streakDays || 0}<span className="text-xs ml-1">天</span></p></div>
+                <div><p className="text-[10px] text-dark-500 flex items-center gap-1"><Utensils className="w-3 h-3" />热量</p><p className="font-anton text-xl text-dark-950 mt-1">{workoutSnapshot?.calories || 0}<span className="text-xs ml-1">kcal</span></p></div>
+                <div><p className="text-[10px] text-dark-500">蛋白质</p><p className="font-anton text-xl text-dark-950 mt-1">{workoutSnapshot?.protein || 0}<span className="text-xs ml-1">g</span></p></div>
               </div>
             </div>
           </div>

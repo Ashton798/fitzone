@@ -12,8 +12,12 @@ import Chat from "@/pages/Chat";
 import Notifications from "@/pages/Notifications";
 import Privacy from "@/pages/Privacy";
 import Help from "@/pages/Help";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import WorkoutTracker from "@/pages/WorkoutTracker";
+import MobileHomePage from "@/pages/mobile/MobileHomePage";
+import MobileWorkoutPage from "@/pages/mobile/MobileWorkoutPage";
+import DesktopLayout from "@/layouts/DesktopLayout";
+import MobileLayout from "@/layouts/MobileLayout";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
 
@@ -68,6 +72,32 @@ class GlobalErrorBoundary extends Component<
   }
 }
 
+function ResponsiveApp() {
+  const isMobile = useIsMobile();
+  const routes = (
+    <Routes>
+      <Route path="/" element={isMobile ? <MobileHomePage /> : <Home />} />
+      <Route path="/videos" element={<Videos />} />
+      <Route path="/video/:id" element={<VideoDetail />} />
+      <Route path="/ai-coach" element={<AICoach />} />
+      <Route path="/community" element={<Community />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/meal-plan" element={<MealPlan />} />
+      <Route path="/workout" element={isMobile ? <MobileWorkoutPage /> : <WorkoutTracker />} />
+      <Route path="/chat" element={<Chat />} />
+      <Route path="/chat/:userId" element={<Chat />} />
+      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/help" element={<Help />} />
+    </Routes>
+  );
+
+  return isMobile
+    ? <MobileLayout>{routes}</MobileLayout>
+    : <DesktopLayout>{routes}</DesktopLayout>;
+}
+
 export default function App() {
   // 应用启动时安全检查：清理base64头像等可能导致白屏的数据
   useEffect(() => {
@@ -99,27 +129,7 @@ export default function App() {
   return (
     <GlobalErrorBoundary>
       <Router>
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/videos" element={<Videos />} />
-              <Route path="/video/:id" element={<VideoDetail />} />
-              <Route path="/ai-coach" element={<AICoach />} />
-              <Route path="/community" element={<Community />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/meal-plan" element={<MealPlan />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/chat/:userId" element={<Chat />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/help" element={<Help />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
+        <ResponsiveApp />
       </Router>
     </GlobalErrorBoundary>
   );

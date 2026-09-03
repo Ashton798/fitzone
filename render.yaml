@@ -10,8 +10,10 @@ services:
     region: singapore           # 新加坡区域（亚洲访问较快）
     branch: main
     rootDir: server
-    buildCommand: npm install
-    startCommand: npx tsx server.ts
+    buildCommand: |
+      npm install
+      npx tsc -p tsconfig.json
+    startCommand: node dist/server.js
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:

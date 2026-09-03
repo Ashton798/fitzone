@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 import aiRoutes from './ai/routes.js';
+import { registerWorkoutRoutes, type WorkoutTable } from './workoutRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -86,6 +87,9 @@ let posts = loadDB('posts');
 let postLikes = loadDB('post_likes');
 let postComments = loadDB('post_comments');
 let workoutRecords = loadDB('workout_records');
+let exercises = loadDB('exercises');
+let workoutPlans = loadDB('workout_plans');
+let personalRecords = loadDB('personal_records');
 let checkins = loadDB('checkins');
 let mealPlans = loadDB('meal_plans');
 let favorites = loadDB('favorites');
@@ -101,6 +105,9 @@ function applyRemoteTable(name: string, data: any[]) {
     case 'post_likes': postLikes = data; break;
     case 'post_comments': postComments = data; break;
     case 'workout_records': workoutRecords = data; break;
+    case 'exercises': exercises = data; break;
+    case 'workout_plans': workoutPlans = data; break;
+    case 'personal_records': personalRecords = data; break;
     case 'checkins': checkins = data; break;
     case 'meal_plans': mealPlans = data; break;
     case 'favorites': favorites = data; break;
@@ -109,7 +116,8 @@ function applyRemoteTable(name: string, data: any[]) {
 
 const DB_TABLES = [
   'users', 'verification_codes', 'friendships', 'messages', 'posts',
-  'post_likes', 'post_comments', 'workout_records', 'checkins', 'meal_plans', 'favorites',
+  'post_likes', 'post_comments', 'workout_records', 'exercises', 'workout_plans',
+  'personal_records', 'checkins', 'meal_plans', 'favorites',
 ];
 
 async function loadAllFromRedis() {
@@ -401,94 +409,6 @@ app.post('/api/auth/set-password', authenticateToken, (req, res) => {
   saveDB('users', users);
 
   res.json({ success: true, message: '密码设置成功' });
-});
-
-// 微信登录
-app.post('/api/auth/login-wechat', (req, res) => {
-  const mockOpenid = `wechat_${uuidv4().slice(0, 8)}`;
-  const mockUserInfo = {
-    nickname: `微信用户${Math.floor(Math.random() * 10000)}`,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${mockOpenid}`
-  };
-
-  let user = users.find(u => u.wechatOpenid === mockOpenid);
-
-  if (!user) {
-    const userId = uuidv4();
-    user = {
-      id: userId,
-      wechatOpenid: mockOpenid,
-      nickname: mockUserInfo.nickname,
-      avatar: mockUserInfo.avatar,
-      level: 1,
-      experience: 0,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-    users.push(user);
-  } else {
-    user.lastLogin = new Date().toISOString();
-  }
-  saveDB('users', users);
-
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-  res.json({
-    success: true,
-    token,
-    user: {
-      id: user.id,
-      nickname: user.nickname,
-      avatar: user.avatar,
-      level: user.level,
-      experience: user.experience,
-      loginType: 'wechat'
-    }
-  });
-});
-
-// QQ登录
-app.post('/api/auth/login-qq', (req, res) => {
-  const mockOpenid = `qq_${uuidv4().slice(0, 8)}`;
-  const mockUserInfo = {
-    nickname: `QQ用户${Math.floor(Math.random() * 10000)}`,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${mockOpenid}`
-  };
-
-  let user = users.find(u => u.qqOpenid === mockOpenid);
-
-  if (!user) {
-    const userId = uuidv4();
-    user = {
-      id: userId,
-      qqOpenid: mockOpenid,
-      nickname: mockUserInfo.nickname,
-      avatar: mockUserInfo.avatar,
-      level: 1,
-      experience: 0,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString()
-    };
-    users.push(user);
-  } else {
-    user.lastLogin = new Date().toISOString();
-  }
-  saveDB('users', users);
-
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-  res.json({
-    success: true,
-    token,
-    user: {
-      id: user.id,
-      nickname: user.nickname,
-      avatar: user.avatar,
-      level: user.level,
-      experience: user.experience,
-      loginType: 'qq'
-    }
-  });
 });
 
 // 获取当前用户信息
@@ -1045,42 +965,21 @@ app.delete('/api/meals/:mealId', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// ==================== 训练记录 API ====================
-
-app.get('/api/workouts', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const { limit } = req.query;
-
-  const userWorkouts = workoutRecords.filter(w => w.userId === userId).slice(-(parseInt(limit as string) || 50));
-  res.json(userWorkouts);
-});
-
-app.post('/api/workouts', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const { videoId, duration, calories, notes } = req.body;
-
-  const newWorkout = {
-    id: uuidv4(),
-    userId,
-    videoId,
-    duration,
-    calories,
-    notes,
-    createdAt: new Date().toISOString()
-  };
-
-  workoutRecords.push(newWorkout);
-
-  // 更新用户经验值
-  const user = users.find(u => u.id === userId);
-  if (user) {
-    user.experience += Math.floor(duration / 10);
-    saveDB('users', users);
-  }
-
-  saveDB('workout_records', workoutRecords);
-
-  res.json(newWorkout);
+// ==================== 训练追踪 API ====================
+registerWorkoutRoutes(app, authenticateToken, {
+  get: (table: WorkoutTable) => {
+    if (table === 'exercises') return exercises;
+    if (table === 'workout_plans') return workoutPlans;
+    if (table === 'personal_records') return personalRecords;
+    return workoutRecords;
+  },
+  set: (table: WorkoutTable, rows: any[]) => {
+    if (table === 'exercises') exercises = rows;
+    else if (table === 'workout_plans') workoutPlans = rows;
+    else if (table === 'personal_records') personalRecords = rows;
+    else workoutRecords = rows;
+    saveDB(table, rows);
+  },
 });
 
 // ==================== 收藏 API ====================
