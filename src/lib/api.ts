@@ -121,11 +121,26 @@ export const authApi = {
       bio: user.bio || '',
       level: user.level,
       experience: user.experience,
+      experienceLevel: user.experienceLevel,
+      weeklyWorkoutGoal: user.weeklyWorkoutGoal,
+      preferredSessionMinutes: user.preferredSessionMinutes,
+      unitSystem: user.unitSystem,
+      profileVisibility: user.profileVisibility,
+      createdAt: user.createdAt,
     };
   },
 
   // 更新用户信息
-  updateUser: async (data: { nickname?: string; avatar?: string; bio?: string }) => {
+  updateUser: async (data: {
+    nickname?: string;
+    avatar?: string;
+    bio?: string;
+    experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+    weeklyWorkoutGoal?: number;
+    preferredSessionMinutes?: number;
+    unitSystem?: 'metric' | 'imperial';
+    profileVisibility?: 'public' | 'friends' | 'private';
+  }) => {
     return request('/auth/me', {
       method: 'PUT',
       body: JSON.stringify(data),

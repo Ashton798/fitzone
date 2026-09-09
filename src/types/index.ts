@@ -8,6 +8,11 @@ export interface User {
   bio: string;
   level?: number;
   experience?: number;
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+  weeklyWorkoutGoal?: number;
+  preferredSessionMinutes?: number;
+  unitSystem?: 'metric' | 'imperial';
+  profileVisibility?: 'public' | 'friends' | 'private';
   followers: number;
   following: number;
   createdAt: string;

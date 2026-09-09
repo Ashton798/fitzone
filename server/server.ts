@@ -435,13 +435,18 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     bio: user.bio || '',
     level: user.level,
     experience: user.experience,
+    experienceLevel: user.experienceLevel || 'beginner',
+    weeklyWorkoutGoal: user.weeklyWorkoutGoal || 3,
+    preferredSessionMinutes: user.preferredSessionMinutes || 60,
+    unitSystem: user.unitSystem || 'metric',
+    profileVisibility: user.profileVisibility || 'public',
     createdAt: user.createdAt
   });
 });
 
 // 更新用户信息
 app.put('/api/auth/me', authenticateToken, (req, res) => {
-  const { nickname, avatar, bio } = req.body;
+  const { nickname, avatar, bio, experienceLevel, weeklyWorkoutGoal, preferredSessionMinutes, unitSystem, profileVisibility } = req.body;
   const userId = req.user.userId;
 
   const user = users.find(u => u.id === userId);
@@ -465,6 +470,28 @@ app.put('/api/auth/me', authenticateToken, (req, res) => {
   }
 
   if (bio !== undefined) user.bio = bio;
+  if (experienceLevel !== undefined) {
+    if (!['beginner', 'intermediate', 'advanced'].includes(experienceLevel)) return res.status(400).json({ error: '训练水平设置无效' });
+    user.experienceLevel = experienceLevel;
+  }
+  if (weeklyWorkoutGoal !== undefined) {
+    const value = Number(weeklyWorkoutGoal);
+    if (!Number.isInteger(value) || value < 1 || value > 7) return res.status(400).json({ error: '每周训练目标需为 1-7 天' });
+    user.weeklyWorkoutGoal = value;
+  }
+  if (preferredSessionMinutes !== undefined) {
+    const value = Number(preferredSessionMinutes);
+    if (!Number.isInteger(value) || value < 15 || value > 180) return res.status(400).json({ error: '单次训练时长需为 15-180 分钟' });
+    user.preferredSessionMinutes = value;
+  }
+  if (unitSystem !== undefined) {
+    if (!['metric', 'imperial'].includes(unitSystem)) return res.status(400).json({ error: '单位设置无效' });
+    user.unitSystem = unitSystem;
+  }
+  if (profileVisibility !== undefined) {
+    if (!['public', 'friends', 'private'].includes(profileVisibility)) return res.status(400).json({ error: '主页可见范围无效' });
+    user.profileVisibility = profileVisibility;
+  }
   saveDB('users', users);
 
   res.json({
@@ -476,7 +503,13 @@ app.put('/api/auth/me', authenticateToken, (req, res) => {
       avatar: user.avatar,
       bio: user.bio,
       level: user.level,
-      experience: user.experience
+      experience: user.experience,
+      experienceLevel: user.experienceLevel || 'beginner',
+      weeklyWorkoutGoal: user.weeklyWorkoutGoal || 3,
+      preferredSessionMinutes: user.preferredSessionMinutes || 60,
+      unitSystem: user.unitSystem || 'metric',
+      profileVisibility: user.profileVisibility || 'public',
+      createdAt: user.createdAt
     }
   });
 });
