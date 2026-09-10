@@ -123,6 +123,29 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
+// 小程序标题字体走 FitZone 自有 API 域名，真机只需配置一个合法域名。
+const fontSources: Record<string, string> = {
+  'display.ttf': 'https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wpg.ttf',
+  'numbers.ttf': 'https://fonts.gstatic.com/s/anton/v27/1Ptgg87LROyAm0K0.ttf',
+};
+
+app.get('/api/assets/fonts/:font', async (req: any, res: any) => {
+  const source = fontSources[req.params.font];
+  if (!source) return res.status(404).json({ error: '字体不存在' });
+
+  try {
+    const upstream = await fetch(source);
+    if (!upstream.ok) throw new Error(`Font upstream returned ${upstream.status}`);
+    res.setHeader('Content-Type', 'font/ttf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (error) {
+    console.error('[字体代理失败]', error);
+    return res.status(502).json({ error: '字体暂时不可用' });
+  }
+});
+
 // ==================== JWT 认证中间件 ====================
 function authenticateToken(req: any, res: any, next: any) {
   const authHeader = req.headers['authorization'];
