@@ -1,28 +1,49 @@
 // ============================================================
-// DeepSeek API 封装
-// 官网：https://platform.deepseek.com
-// API 兼容 OpenAI 格式，使用 openai SDK 调用
-// 文档：https://api-docs.deepseek.com/
+// FitZone 文字模型适配器
+// 兼容 GLM / DeepSeek 的 OpenAI Chat Completions 协议。
 // ============================================================
 
 import OpenAI from 'openai';
 import { VIDEO_CATALOG } from './videoCatalog.js';
 
-// 是否已配置 DeepSeek API Key
-export function isDeepSeekConfigured(): boolean {
-  return !!process.env.DEEPSEEK_API_KEY;
+type TextModelConfig = {
+  apiKey: string;
+  baseURL: string;
+  model: string;
+};
+
+function getTextModelConfig(): TextModelConfig | null {
+  if (process.env.GLM_API_KEY) {
+    return {
+      apiKey: process.env.GLM_API_KEY,
+      baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+      model: process.env.GLM_MODEL || 'glm-4-flash-250414',
+    };
+  }
+  if (process.env.DEEPSEEK_API_KEY) {
+    return {
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    };
+  }
+  return null;
 }
 
-// 获取 DeepSeek 客户端
-function getClient(): OpenAI {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    throw new Error('DeepSeek API Key 未配置，请在 .env 中设置 DEEPSEEK_API_KEY');
+// 保留旧导出名，避免破坏现有路由。
+export function isDeepSeekConfigured(): boolean {
+  return getTextModelConfig() !== null;
+}
+
+function getClient(): { client: OpenAI; model: string } {
+  const config = getTextModelConfig();
+  if (!config) {
+    throw new Error('文字模型 API Key 未配置');
   }
-  return new OpenAI({
-    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
-    apiKey,
-  });
+  return {
+    client: new OpenAI({ baseURL: config.baseURL, apiKey: config.apiKey }),
+    model: config.model,
+  };
 }
 
 // AI 健身教练系统提示
@@ -74,8 +95,7 @@ export async function deepseekChatStream(
   messages: { role: string; content: string }[],
   onChunk: (chunk: string) => void
 ): Promise<void> {
-  const client = getClient();
-  const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+  const { client, model } = getClient();
 
   const fullMessages = [
     { role: 'system' as const, content: buildSystemPrompt() },
@@ -105,8 +125,7 @@ export async function deepseekChatStream(
 export async function deepseekChat(
   messages: { role: string; content: string }[]
 ): Promise<string> {
-  const client = getClient();
-  const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+  const { client, model } = getClient();
 
   const fullMessages = [
     { role: 'system' as const, content: buildSystemPrompt() },

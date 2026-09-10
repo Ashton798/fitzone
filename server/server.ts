@@ -1184,7 +1184,8 @@ async function start() {
     console.log('  - AI:  /api/ai/* (chat / analyze / voice)');
     console.log('');
     console.log('AI 配置状态:');
-    console.log(`  - DeepSeek 文字对话: ${process.env.DEEPSEEK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
+    const textProvider = process.env.GLM_API_KEY ? 'GLM' : process.env.DEEPSEEK_API_KEY ? 'DeepSeek' : '';
+    console.log(`  - AI 文字对话:       ${textProvider ? `✓ 已配置（${textProvider}）` : '✗ 未配置（走 mock）'}`);
     console.log(`  - 豆包视觉模型:     ${process.env.DOUBAO_ARK_API_KEY ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
     console.log(`  - 豆包语音服务:     ${process.env.VOLC_APPID ? '✓ 已配置' : '✗ 未配置（走 mock）'}`);
     console.log(`  - Redis 持久化:     ${UPSTASH_URL ? '✓ 已配置' : '✗ 未配置（数据仅存本地文件）'}`);

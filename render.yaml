@@ -29,5 +29,9 @@ services:
         sync: false             # 部署后填写 Upstash Token
       - key: DEEPSEEK_API_KEY
         sync: false
+      - key: GLM_API_KEY
+        sync: false
+      - key: GLM_MODEL
+        value: glm-4-flash-250414
       - key: OPENROUTER_API_KEY
         sync: false
